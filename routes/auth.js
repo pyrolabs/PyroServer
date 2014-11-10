@@ -21,7 +21,7 @@ router.post('/', function(req, res) {
 		console.log('Request Received:', req.body);
 		var tokenGenerator = new FirebaseTokenGenerator(req.body.secret);
 		var token = tokenGenerator.createToken({uid: "1",});
-		res.writeHead(200, {'Content-Type':'application/json'});
+		res.writeHead(200, {'Content-Type':'application/json', 'Access-Control-Allow-Origin':'*'});
 		res.write(token);
 	  res.end();
 	}
