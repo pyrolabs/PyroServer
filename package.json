@@ -1,0 +1,20 @@
+{
+  "name": "pyroServer",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "nodemon ./bin/www"
+  },
+  "dependencies": {
+    "body-parser": "~1.8.1",
+    "cookie-parser": "~1.3.3",
+    "debug": "~2.0.0",
+    "express": "~4.9.0",
+    "firebase": "^2.0.2",
+    "firebase-token-generator": "^2.0.0",
+    "jade": "~1.6.0",
+    "morgan": "~1.3.0",
+    "nodemon": "^1.2.1",
+    "serve-favicon": "~2.1.3"
+  }
+}
