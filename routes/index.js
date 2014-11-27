@@ -10,19 +10,20 @@ router.get('/', function(req, res) {
 });
 router.post('/create', function(req, res){
 	console.log('request received:', req.body);
-	if(req.body.hasOwnProperty('name')){
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
 		var newAppName = req.body.name;
+		var author = req.body.author;
 		console.log('request has name param:', newAppName);
 		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
 		  var account = new FirebaseAccount(token);
-		  var dbName = 'pyro-'+ req.body.name
+		  var dbName = 'pyro-'+ req.body.name;
 		  account.createDatabase(dbName)
 		  .then(function(instance) {
 		    var appfb = new Firebase(instance.toString());
 		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
 		    console.log('instance created:', instance.toString());
 		    // [TODO] Save new instance to pyro firebase
-		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName}
+		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName, author:author};
 		    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
 		    	res.writeHead(201, {'Content-Type':'text/plain'});
 					res.write(newAppName);
