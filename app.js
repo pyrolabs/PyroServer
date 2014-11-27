@@ -29,7 +29,7 @@ app.use('/auth', auth);
 
 
 // API HEADERS
-app.use(cors({origin:'https:pyro.firebaseapp.com'}));
+app.use(cors({origin:'https://pyro.firebaseapp.com'}));
 // Add headers
 // app.all( '*', function (req, res, next) {
 
