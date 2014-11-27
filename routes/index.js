@@ -2,6 +2,7 @@ var express = require('express');
 var router = express.Router();
 var FirebaseAccount = require('firebase-admin');
 var Firebase = require('firebase');
+var cors = require('cors');
 var fbInfo = {email: process.env.PYRO_INFO_EMAIL, password: process.env.PYRO_INFO_PASS};
 /* GET home page. */
 router.get('/', function(req, res) {
@@ -24,7 +25,6 @@ router.post('/create', function(req, res){
 		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName}
 		    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
 		    	res.writeHead(201, {'Content-Type':'text/plain'});
-    			res.setHeader('Access-Control-Allow-Origin', '*');
 					res.write(newAppName);
 				  res.end();
 		    })
