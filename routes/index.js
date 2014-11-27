@@ -23,7 +23,7 @@ router.post('/create', function(req, res){
 		    // [TODO] Save new instance to pyro firebase
 		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName}
 		    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
-		    	res.writeHead(201, {'Content-Type':'text/plain'});
+		    	res.writeHead(201, {'Content-Type':'text/plain', 'Access-Control-Allow-Origin':'http://localhost:9000'});
 					res.write(newAppName);
 				  res.end();
 		    })
