@@ -24,6 +24,7 @@ router.post('/create', function(req, res){
 		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName}
 		    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
 		    	res.writeHead(201, {'Content-Type':'text/plain'});
+    			res.setHeader('Access-Control-Allow-Origin', '*');
 					res.write(newAppName);
 				  res.end();
 		    })
