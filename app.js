@@ -23,13 +23,15 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-
+// API HEADERS
+var corsOptions = {origin:'https://pyro.firebaseapp.com'};
+app.use(cors());
+app.options('*', cors());
 app.use('/', routes);
 app.use('/auth', auth);
 
 
-// API HEADERS
-app.use(cors({origin:'https://pyro.firebaseapp.com'}));
+
 // Add headers
 // app.all( '*', function (req, res, next) {
 
