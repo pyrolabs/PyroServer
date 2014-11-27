@@ -10,18 +10,24 @@ router.get('/', function(req, res) {
 router.post('/create', function(req, res){
 	console.log('request received:', req.body);
 	if(req.body.hasOwnProperty('name')){
-		console.log('request has name param:', req.body.name);
+		var newAppName = req.body.name;
+		console.log('request has name param:', newAppName);
 		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
 		  var account = new FirebaseAccount(token);
 		  var dbName = 'pyro-'+ req.body.name
 		  account.createDatabase(dbName)
 		  .then(function(instance) {
-		    var fb = new Firebase(instance.toString());
+		    var appfb = new Firebase(instance.toString());
+		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
 		    console.log('instance created:', instance.toString());
 		    // [TODO] Save new instance to pyro firebase
-		    res.writeHead(201, {'Content-Type':'text/plain'});
-				res.write(instance.toString());
-			  res.end();
+		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName}
+		    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
+		    	res.writeHead(201, {'Content-Type':'text/plain'});
+					res.write(newAppName);
+				  res.end();
+		    })
+		    
 		  }).catch(function(err) {
 		    console.error('Oops, error creating instance:', err);
 		    res.writeHead(500, {'Content-Type':'text/plain'});
