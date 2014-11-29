@@ -41,26 +41,45 @@ router.post('/generate', function(req, res){
 									respond(err1, res);
 								} else {
 									console.log('bucketCreated successfully:', data1);
-									// put first object
-										var upParams = {
-										  localDir: "fs/seed",
-										  s3Params: {
-										    Bucket: dbName,
-										    Prefix: ""
-										  },
-										};
-										var uploader = client.uploadDir(upParams);
-										uploader.on('error', function(err) {
-									  	console.error("unable to sync:", err.stack);
-										});
-										uploader.on('progress', function() {
-										  console.log("progress", uploader.progressAmount, uploader.progressTotal);
-										});
-										uploader.on('end', function() {
-										  console.log("done uploading");
-										  var responseInfo = {status:200, message:'Seed uploaded successfully'};
-											respond(responseInfo, res);
-										});
+									s3bucket.putBucketWebsite({
+										Bucket: dbName, 
+										WebsiteConfiguration:{
+											IndexDocument:{
+												Suffix:'index.html'
+											}
+										}
+									}, function(err, data){
+										if(err){
+											console.error('Error creating bucket website setup');
+											respond(err, res);
+										} else {
+											console.log('website config set');
+											// put first object
+											var upParams = {
+											  localDir: "fs/seed",
+											  s3Params: {
+											    Bucket: dbName,
+											    Prefix: "",
+											    ACL:'public-read'
+											  },
+											};
+											var uploader = client.uploadDir(upParams);
+											uploader.on('error', function(err) {
+										  	console.error("unable to sync:", err.stack);
+										  	respond(err, res);
+											});
+											uploader.on('progress', function() {
+											  console.log("progress", uploader.progressAmount, uploader.progressTotal);
+											});
+											uploader.on('end', function() {
+											  console.log("done uploading");
+											  var responseInfo = {status:200, url:dbName + '.s3-website-us-east-1.amazonaws.com', message:'Seed app upload successful for ' + newAppName};
+												respond(responseInfo, res);
+											});	
+										}
+
+									});
+									
 										// s3bucket.moveObject({CopySource:'pyro-cdn/seed', Key:''}, function(err, data) {
 									 //    if (err) {
 									 //      console.error("Error uploading data: ", err);
@@ -76,17 +95,7 @@ router.post('/generate', function(req, res){
 										// 	}
 									 //  }); //--putObject
 									// });
-							// var knoxCopy = require('knox-copy');
-							// 		knoxClient = knoxCopy.createClient({key:process.env.PYRO_SERVER_S3_KEY, secret:process.env.PYRO_SERVER_S3_SECRET, bucket:dbName})
-									// knoxClient.copyBucket({fromBucket:'pyro-cdn', fromPrefix:'/seed', toPrefix:'/' }, function(err, count){
-									// 	if(err){
-									// 		console.error(err);
-									// 		respond(err, res)
-									// 	} else {
-									// 		console.log('successfully copied '+ count + ' files');
-									// 		respond({status:200, message:'Successfully created app.', url:newAppName + '.s3-website-us-east-1.amazonaws.com'}, res);
-									// 	}
-									// });
+
 								}
 							}); //--createBucket
 						}); 
@@ -221,44 +230,43 @@ router.post('/delete', function(req, res){
 });
 router.post('/test', function(req, res){
 	console.log('post received:');
+	// Create Bucket
+		var s3bucket = new awsSdk.S3();
+		s3bucket.createBucket({Bucket: 'pyro-testBucket'},function(err1, data1) {
+			if(err1){
+				console.error('error creating bucket:', err1);
+				respond(err1, res);
+			} else {
+				console.log('bucketCreated successfully');
+			  var data = {Key: 'testKey', Body: 'Hello!', Bucket:'pyro-testBucket'};
+			  s3bucket.putObject(data, function(err, data) {
+			    if (err) {
+			      console.error("Error uploading data: ", err);
+			      respond(err, res);
+			    } 
+			    else {
+			      console.log("Successfully uploaded data to myBucket/myKey");
+	      		// [TODO] Copy new app to new bucket
+		    		// [TODO] Delete local app instance after upload to s3 is completed successfully
+						// Successful response
+						var responseInfo = {status:201, message:'Successful Generation. App available at:'};
+						respond(responseInfo, res);
+					}
+			  }); //--putObject
+			}
+		}); //--createBucket
+// Bucket copy
 // var knoxCopy = require('knox-copy');
-// 						var appName = req.body.name;
-// 						knoxClient = knoxCopy.createClient({key:process.env.PYRO_SERVER_S3_KEY, secret:process.env.PYRO_SERVER_S3_SECRET, bucket:'pyro-'+appName})
-// 						knoxClient.copyBucket({fromBucket:'pyro-cdn', fromPrefix:'/seed', toPrefix:'' }, function(err, count){
-// 							if(err){
-// 								console.error(err);
-// 								respond(err, res)
-// 							} else {
-// 								console.log('successfully copied '+ count + ' files');
-// 								respond({status:200, message:'Successfully copied seed'}, res);
-// 							}
-// 						});
-						var s3bucket = new awsSdk.S3();
-						s3bucket.createBucket({Bucket: 'pyro-testBucket'},function(err1, data1) {
-							if(err1){
-								console.error('error creating bucket:', err1);
-								respond(err1, res);
-							} else {
-								console.log('bucketCreated successfully');
-							  var data = {Key: 'testKey', Body: 'Hello!', Bucket:'pyro-testBucket'};
-							  s3bucket.putObject(data, function(err, data) {
-							    if (err) {
-							      console.error("Error uploading data: ", err);
-							      respond(err, res);
-							    } 
-							    else {
-							      console.log("Successfully uploaded data to myBucket/myKey");
-					      		// [TODO] Copy new app to new bucket
-						    		// [TODO] Delete local app instance after upload to s3 is completed successfully
-										// Successful response
-										var responseInfo = {status:201, message:'Successful Generation. App available at:'};
-										respond(responseInfo, res);
-									}
-							  }); //--putObject
-							}
-							
-						}); //--createBucket
-
+// 		knoxClient = knoxCopy.createClient({key:process.env.PYRO_SERVER_S3_KEY, secret:process.env.PYRO_SERVER_S3_SECRET, bucket:dbName})
+		// knoxClient.copyBucket({fromBucket:'pyro-cdn', fromPrefix:'/seed', toPrefix:'/' }, function(err, count){
+		// 	if(err){
+		// 		console.error(err);
+		// 		respond(err, res)
+		// 	} else {
+		// 		console.log('successfully copied '+ count + ' files');
+		// 		respond({status:200, message:'Successfully created app.', url:newAppName + '.s3-website-us-east-1.amazonaws.com'}, res);
+		// 	}
+		// });
 // Single file copy
 // 	var copyTask = client.copyObject({Bucket:'pyro-labs', CopySource:'pyro-cdn/seed/index.html', Key:'index.html'});
 // 	copyTask.on('end', function(data){
