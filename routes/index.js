@@ -91,19 +91,37 @@ router.post('/delete', function(req, res){
 });
 router.post('/test', function(req, res){
 	console.log('post received:');
-	var copyTask = client.copyObject({Bucket:'pyro-labs', CopySource:'pyro-cdn/seed/index.html', Key:'index.html'});
-	copyTask.on('end', function(data){
-		console.log('Copy successful:', data);
+	// 
+	var downloadSeed = client.downloadDir({localDir:'fs', s3Params:{Prefix:'seed', Bucket:'pyro-cdn'}})
+	downloadSeed.on('progress', function(progressVal){
+		console.log('Folder downloading progress:', progressVal);	
+	});
+	downloadSeed.on('end', function(){
+		console.log('Copy successful:');
 		res.writeHead(201, {'Content-Type':'application/json'});
-		res.write(JSON.stringify(data));
+		res.write(JSON.stringify({status:'Successful'}));
 	  res.end();
 	});
-	copyTask.on('error', function(err){
+	downloadSeed.on('error', function(err){
 		console.error('Error copying:', err);
 		res.writeHead(500, {'Content-Type':'application/json'});
 		res.write(JSON.stringify(err));
 		res.end();
 	});
+// Single file copy
+// 	var copyTask = client.copyObject({Bucket:'pyro-labs', CopySource:'pyro-cdn/seed/index.html', Key:'index.html'});
+// 	copyTask.on('end', function(data){
+// 		console.log('Copy successful:', data);
+// 		res.writeHead(201, {'Content-Type':'application/json'});
+// 		res.write(JSON.stringify(data));
+// 	  res.end();
+// 	});
+// 	copyTask.on('error', function(err){
+// 		console.error('Error copying:', err);
+// 		res.writeHead(500, {'Content-Type':'application/json'});
+// 		res.write(JSON.stringify(err));
+// 		res.end();
+// 	});
 });
 
 module.exports = router;
