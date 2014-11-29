@@ -43,41 +43,22 @@ router.post('/generate', function(req, res){
 									console.log('bucketCreated successfully:', data1);
 									// put first object
 										var upParams = {
-										  localDir: "fs/"+ newAppName,
-										  // deleteRemoved: true, // default false, whether to remove s3 objects
-										                       // that have no corresponding local file.
+										  localDir: "fs/seed",
 										  s3Params: {
 										    Bucket: dbName,
 										    Prefix: ""
 										  },
 										};
-										var downParams = {
-											localDir:"fs/"+newAppName,
-											s3Params:{
-												Bucket:'pyro-cdn',
-												Prefix:'seed'
-											}
-										};
-										
-										var downloader = client.downloadDir(downParams);
-										downloader.on('end', function(){
-											console.log('seed downloaded to server');
-											var uploader = client.uploadDir(upParams);
-											uploader.on('error', function(err) {
-										  	console.error("unable to sync:", err.stack);
-											});
-											uploader.on('progress', function() {
-											  console.log("progress", uploader.progressAmount, uploader.progressTotal);
-											});
-											uploader.on('end', function() {
-											  console.log("done uploading");
-											  var responseInfo = {status:200, message:'Seed uploaded successfully'};
-												respond(responseInfo, res);
-											});
+										var uploader = client.uploadDir(upParams);
+										uploader.on('error', function(err) {
+									  	console.error("unable to sync:", err.stack);
 										});
-										downloader.on('error', function(err){
-											console.error('unable to download:', err);
-											var responseInfo = {status:500, message:'Error downloading seed'};
+										uploader.on('progress', function() {
+										  console.log("progress", uploader.progressAmount, uploader.progressTotal);
+										});
+										uploader.on('end', function() {
+										  console.log("done uploading");
+										  var responseInfo = {status:200, message:'Seed uploaded successfully'};
 											respond(responseInfo, res);
 										});
 										// s3bucket.moveObject({CopySource:'pyro-cdn/seed', Key:''}, function(err, data) {
@@ -171,9 +152,6 @@ router.post('/create', function(req, res){
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
-function downloadSeed(argSeedName, res){
-		
-}
 function respond(argResInfo, res){
 	// {status:500, error:errObj}
 	if(argResInfo && argResInfo.hasOwnProperty('status')){
@@ -185,6 +163,26 @@ function respond(argResInfo, res){
 		res.end();
 	}
 }
+router.post('/updateCdn', function(req, res){
+	var downParams = {
+		localDir:"fs/seed",
+		s3Params:{
+			Bucket:'pyro-cdn',
+			Prefix:'seed'
+		}
+	};
+	var downloader = client.downloadDir(downParams);
+	downloader.on('end', function(){
+		console.log('seed downloaded to server');
+		var responseInfo = {status:200, message:'Seed downloaded to server'};
+		respond(responseInfo, res)
+	});
+	downloader.on('error', function(err){
+		console.error('unable to download:', err);
+		var responseInfo = {status:500, message:'Error downloading seed'};
+		respond(responseInfo, res);
+	});
+});
 router.post('/delete', function(req, res){
 	console.log('Delete request received:', req.body);
 	// [TODO] Make this delete firebase
