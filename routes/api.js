@@ -20,10 +20,8 @@ router.post('/generate', function(req, res){
 		console.log('it is the correct shape');
 		var newAppName = req.body.name;
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
-			console.log('instance ref:', appSnap.val());
-			if(appSnap.val() == null){
-				//App doesn't already exist in firebase
 				var author = req.body.author;
+				// [TODO] check that author is the author of the instance
 				console.log('request has name param:', newAppName);
 				// Log into Server Firebase account
 				FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
@@ -69,9 +67,9 @@ router.post('/generate', function(req, res){
 										  	console.error("unable to sync:", err.stack);
 										  	respond(err, res);
 											});
-											uploader.on('progress', function() {
-											  console.log("progress", uploader.progressAmount, uploader.progressTotal);
-											});
+											// uploader.on('progress', function() {
+											//   console.log("progress", uploader.progressAmount, uploader.progressTotal);
+											// });
 											uploader.on('end', function() {
 											  console.log("done uploading");
 											  var responseInfo = {status:200, url:dbName + '.s3-website-us-east-1.amazonaws.com', message:'Seed app upload successful for ' + newAppName};
@@ -86,9 +84,6 @@ router.post('/generate', function(req, res){
 				    respond({status:500, message:JSON.stringify(err)}, res);
 				  }); //-- createDatabase
 				}); //-- getToken
-			} else {
-				respond({status:500, message:'App with this name already exists'}, res);
-			}
 		});
 		
 	} else {
