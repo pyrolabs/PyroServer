@@ -31,9 +31,8 @@ router.post('/generate', function(req, res){
 				  account.createDatabase(dbName).then(function(instance) {
 				    // var appfb = new Firebase(instance.toString());
 				    console.log('instance created:', instance.toString());
-				    // Save new instance to pyro firebase
-				    var instanceObj = {name:newAppName, url:instance.toString(), author:author};
-				    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
+				    var instanceObj = {name:newAppName, dbUrl:instance.toString(), author:author};
+			    		// Create new bucket for generated app
 			    		var s3bucket = new awsSdk.S3();
 							s3bucket.createBucket({Bucket: dbName},function(err1, data1) {
 								if(err1){
@@ -77,28 +76,9 @@ router.post('/generate', function(req, res){
 												respond(responseInfo, res);
 											});	
 										}
-
 									});
-									
-										// s3bucket.moveObject({CopySource:'pyro-cdn/seed', Key:''}, function(err, data) {
-									 //    if (err) {
-									 //      console.error("Error uploading data: ", err);
-									 //      respond(err, res);
-									 //    } 
-									 //    else {
-									 //      console.log("Successfully uploaded data to myBucket/myKey");
-							   //    		// [TODO] Copy new app to new bucket
-								  //   		// [TODO] Delete local app instance after upload to s3 is completed successfully
-										// 		// Successful response
-										// 		var responseInfo = {status:201, message:'Successful Generation. App available at:'};
-										// 		respond(responseInfo, res);
-										// 	}
-									 //  }); //--putObject
-									// });
-
 								}
 							}); //--createBucket
-						}); 
 				  }).catch(function(err) {
 				    console.error('Oops, error creating instance:', err);
 				    respond({status:500, message:JSON.stringify(err)}, res);
@@ -127,40 +107,40 @@ params:
  
 */
 
-router.post('/create', function(req, res){
-	console.log('request received:', req.body);
-	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
-		var newAppName = req.body.name;
-		var author = req.body.author;
-		console.log('request has name param:', newAppName);
-		// Log into Server Firebase account
-		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
-		  var account = new FirebaseAccount(token);
-		  // create new firebase with "pyro-"" ammended to front of the app name
-		  var dbName = 'pyro-'+ req.body.name;
-		  account.createDatabase(dbName).then(function(instance) {
-		    // var appfb = new Firebase(instance.toString());
-		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
-		    console.log('instance created:', instance.toString());
-		    // Save new instance to pyro firebase
-		    var instanceObj = {name:newAppName, url:instance.toString(), author:author};
-		    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
-		    	res.writeHead(201, {'Content-Type':'text/plain'});
-					res.write(newAppName);
-				  res.end();
-		    });
+// router.post('/create', function(req, res){
+// 	console.log('request received:', req.body);
+// 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
+// 		var newAppName = req.body.name;
+// 		var author = req.body.author;
+// 		console.log('request has name param:', newAppName);
+// 		// Log into Server Firebase account
+// 		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
+// 		  var account = new FirebaseAccount(token);
+// 		  // create new firebase with "pyro-"" ammended to front of the app name
+// 		  var dbName = 'pyro-'+ req.body.name;
+// 		  account.createDatabase(dbName).then(function(instance) {
+// 		    // var appfb = new Firebase(instance.toString());
+// 		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
+// 		    console.log('instance created:', instance.toString());
+// 		    // Save new instance to pyro firebase
+// 		    var instanceObj = {name:newAppName, url:instance.toString(), author:author};
+// 		    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
+// 		    	res.writeHead(201, {'Content-Type':'text/plain'});
+// 					res.write(newAppName);
+// 				  res.end();
+// 		    });
 		    
-		  }).catch(function(err) {
-		    console.error('Oops, error creating instance:', err);
-		    res.writeHead(500, {'Content-Type':'text/plain'});
-				res.write(err.toString());
-				res.end();
-		  });
-		})
-	} else {
-		respond({status:500, message:'Incorrect request format'}, res);
-	}
-});
+// 		  }).catch(function(err) {
+// 		    console.error('Oops, error creating instance:', err);
+// 		    res.writeHead(500, {'Content-Type':'text/plain'});
+// 				res.write(err.toString());
+// 				res.end();
+// 		  });
+// 		})
+// 	} else {
+// 		respond({status:500, message:'Incorrect request format'}, res);
+// 	}
+// });
 function respond(argResInfo, res){
 	// {status:500, error:errObj}
 	if(argResInfo && argResInfo.hasOwnProperty('status')){
