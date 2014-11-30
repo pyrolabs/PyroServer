@@ -17,8 +17,10 @@ awsSdk.config.update({accessKeyId:process.env.PYRO_SERVER_S3_KEY, secretAccesssK
 router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
+		console.log('it is the correct shape');
 		var newAppName = req.body.name;
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
+			console.log('instance ref:', appSnap.val());
 			if(appSnap.val() == null){
 				//App doesn't already exist in firebase
 				var author = req.body.author;
