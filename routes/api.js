@@ -8,6 +8,8 @@ var pyrofb = new Firebase("https://pyro.firebaseio.com");
 var request = require('request');
 var url = require('url');
 var _ = require('underscore');
+var replace = require('replace');
+var fs = require('fs-extra');
 
 var client = s3.createClient({
 	s3Options:{
@@ -72,19 +74,20 @@ router.post('/generate', function(req, res){
 		console.log('it is the correct shape');
 		var newAppName = req.body.name;
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
-				var author = req.body.author;
-				// [TODO] check that author is the author of the instance
-				console.log('request has name param:', newAppName);
-				// Log into Server Firebase account
-				// generateFirebase
-				generateFirebase(req.body.email, req.body.password,  newAppName, res, function(fbObj){
-					createS3Bucket(fbObj.dbName, res, function() {
-				  	uploadToBucket(fbObj.dbName, "fs/seed", res, function(bucketUrl){
-				  		respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
+				if(!appSnap.val()){
+					var author = req.body.author;
+					// [TODO] check that author is the author of the instance
+					console.log('request has name param:', newAppName);
+					// Log into Server Firebase account
+					// generateFirebase
+					generateFirebase(req.body.email, req.body.password,  newAppName, res, function(fbObj){
+						createS3Bucket(fbObj.dbName, res, function() {
+					  	uploadToBucket(fbObj.dbName, "fs/seed", res, function(bucketUrl){
+					  		respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
+					  	});
 				  	});
-			  	});
-				});
-
+					});
+				}
 		});
 	} else {
 		respond({status:500, message:'Incorrect request format'}, res);
@@ -123,11 +126,11 @@ router.post('/delete', function(req, res) {
 });
 router.post('/test', function(req, res){
 	console.log('api test post received:');
-	createS3Bucket(req.body.name, res, function() {
+	// createS3Bucket(req.body.name, res, function() {
 				  	uploadToBucket(req.body.name, "fs/seed", res, function(bucketUrl){
 				  		respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
 				  	});
-			  	});
+			  	// });
 });
 // -------------------Helper Functions------------------
 // Basic Respond
@@ -235,32 +238,38 @@ function getFirebaseAccount(argEmail, argPass, argRes, cb){
 }
 function uploadToBucket(argBucketName, argLocalDir, argRes, cb){
 	console.log('uploadToBucket called:', argBucketName);
-	var upParams = {
-	  localDir: argLocalDir,
-	  s3Params: {
-	    Bucket: argBucketName,
-	    Prefix: "",
-	    ACL:'public-read'
-	  },
-	};
-	var uploader = client.uploadDir(upParams);
-	uploader.on('error', function(err) {
-  	console.error("unable to sync:", err.stack);
-  	respond(err, argRes);
-	});
-	// uploader.on('progress', function() {
-	//   console.log("progress", uploader.progressAmount, uploader.progressTotal);
-	// });
-	uploader.on('end', function() {
-	  console.log("done uploading");
-	  var bucketUrl = argBucketName + '.s3-website-ap-northeast-1.amazonaws.com';
-	  if(cb){
-	  	cb(bucketUrl);
-	  } else {
-			var responseInfo = {status:200, url:bucketUrl, message:'Seed app upload successful to bucket named:' + argBucketName};
-			respond(responseInfo, argRes);
-	  }
-	});	
+	var newAppDir = 'fs/'+ argBucketName;
+	fs.copy(argLocalDir, newAppDir , function(err){
+		replace({regex:"ZZ", replacement:"https://"+argBucketName+".firebaseio.com", paths:[newAppDir+"/app.js"]});
+		var upParams = {
+		  localDir: newAppDir,
+		  s3Params: {
+		    Bucket: argBucketName,
+		    Prefix: "",
+		    ACL:'public-read'
+		  },
+		};
+		var uploader = client.uploadDir(upParams);
+		uploader.on('error', function(err) {
+	  	console.error("unable to sync:", err.stack);
+	  	respond(err, argRes);
+		});
+		// uploader.on('progress', function() {
+		//   console.log("progress", uploader.progressAmount, uploader.progressTotal);
+		// });
+		uploader.on('end', function() {
+		  console.log("done uploading");
+			// [TODO] Delete new app folders
+		  var bucketUrl = argBucketName + '.s3-website-us-east-1.amazonaws.com';
+		  if(cb){
+		  	cb(bucketUrl);
+		  } else {
+				var responseInfo = {status:200, url:bucketUrl, message:'Seed app upload successful to bucket named:' + argBucketName};
+				respond(responseInfo, argRes);
+		  }
+		});	
+	})
+	
 }
 function createS3Bucket(argBucketName, argRes, cb) {
 	console.log('createS3Bucket called');
