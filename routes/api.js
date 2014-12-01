@@ -72,7 +72,7 @@ router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')){
 		console.log('it is the correct shape');
-		var newAppName = req.body.name;
+		var newAppName = "pyro-" + req.body.name;
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
 				if(!appSnap.val()){
 					var author = req.body.author;
@@ -87,6 +87,33 @@ router.post('/generate', function(req, res){
 					  	});
 				  	});
 					});
+				}
+		});
+	} else {
+		respond({status:500, message:'Incorrect request format'}, res);
+	}
+});
+/* CREATE
+params:
+	name
+	email
+	password
+*/
+router.post('/create', function(req, res){
+	console.log('create request received:', req.body);
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')){
+		console.log('it is the correct shape');
+		var newAppName = "pyro-"+req.body.name;
+		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
+				if(!appSnap.val()){
+					var author = req.body.author;
+					// [TODO] check that author is the author of the instance
+					console.log('request has name param:', newAppName);
+					createS3Bucket(newAppName, res, function() {
+				  	uploadToBucket(fbObj.dbName, "fs/seed", res, function(bucketUrl){
+				  		respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
+				  	});
+			  	});
 				}
 		});
 	} else {
