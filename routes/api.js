@@ -7,6 +7,7 @@ var awsSdk = require('s3/node_modules/aws-sdk');
 var pyrofb = new Firebase("https://pyro.firebaseio.com");
 var request = require('request');
 var url = require('url');
+var _ = require('underscore');
 
 var client = s3.createClient({
 	s3Options:{
@@ -30,39 +31,44 @@ router.post('/createAccount', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')){
 		var email = req.body.email;
 		var pass = req.body.password;
-		var urlObj = {
-			protocol:'https:', 
-			host:'admin.firebase.com', 
-			pathname:'/joinbeta', 
-			query:{
-				email: req.body.email,
-				password: req.body.password
-			}
-		};
-		console.log('urlObj:', urlObj);
-		var requestUrl = url.format(urlObj);
-		request.get(requestUrl, function(error, response, body){
-			if(!error) {
-				console.log('create request returned:', response, body);
-				respond({success:true, status:200, message:'Firebase account created successfully', fbRes:response}, res);
-
-			} else {
-				console.error('error with create account request:', error);
-				respond({status:500, message:'Error creating Firebase account', error: error}, res);
-			}
-		});
+		createFirebaseAccount(email, pass);
 	} else {
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
+
 /* GENERATE
 params:
 	author
 	name
 */
+
+
+// argLocalDir = "fs/seed"
+
+
+/* List
+List objects from s3 given name
+params:
+	name
+*/
+//[TODO] THIS NEEDS TO BE SECURED
+router.post('/list', function(req, res) {
+	if(req.body.hasOwnProperty('name')){
+		console.log('name exists');
+		getListOfObjects(req.body.name, res, function(returnedList){
+			console.log('getListOfObjects returned:', returnedList);
+			respond({list:returnedList, status:200}, res);
+		});
+	} else {
+		respond({status:500, message:'Url Parameter does not exist'}, res);
+	}
+});
+
+
 router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
-	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')){
 		console.log('it is the correct shape');
 		var newAppName = req.body.name;
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
@@ -70,68 +76,16 @@ router.post('/generate', function(req, res){
 				// [TODO] check that author is the author of the instance
 				console.log('request has name param:', newAppName);
 				// Log into Server Firebase account
-				FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
-				  var account = new FirebaseAccount(token);
-				  // create new firebase with "pyro-"" ammended to front of the app name
-				  var dbName = 'pyro-'+ newAppName;
-				  account.createDatabase(dbName).then(function(instance) {
-				    // var appfb = new Firebase(instance.toString());
-				    console.log('instance created:', instance.toString());
-				    var instanceObj = {name:newAppName, dbUrl:instance.toString(), author:author};
-			    		// Create new bucket for generated app
-			    		var s3bucket = new awsSdk.S3();
-							s3bucket.createBucket({Bucket: dbName},function(err1, data1) {
-								if(err1){
-									console.error('error creating bucket:', err1);
-									respond(err1, res);
-								} else {
-									console.log('bucketCreated successfully:', data1);
-									s3bucket.putBucketWebsite({
-										Bucket: dbName, 
-										WebsiteConfiguration:{
-											IndexDocument:{
-												Suffix:'index.html'
-											}
-										}
-									}, function(err, data){
-										if(err){
-											console.error('Error creating bucket website setup');
-											respond(err, res);
-										} else {
-											console.log('website config set');
-											// put first object
-											var upParams = {
-											  localDir: "fs/seed",
-											  s3Params: {
-											    Bucket: dbName,
-											    Prefix: "",
-											    ACL:'public-read'
-											  },
-											};
-											var uploader = client.uploadDir(upParams);
-											uploader.on('error', function(err) {
-										  	console.error("unable to sync:", err.stack);
-										  	respond(err, res);
-											});
-											// uploader.on('progress', function() {
-											//   console.log("progress", uploader.progressAmount, uploader.progressTotal);
-											// });
-											uploader.on('end', function() {
-											  console.log("done uploading");
-											  var responseInfo = {status:200, url:dbName + '.s3-website-us-east-1.amazonaws.com', message:'Seed app upload successful for ' + newAppName};
-												respond(responseInfo, res);
-											});	
-										}
-									});
-								}
-							}); //--createBucket
-				  }).catch(function(err) {
-				    console.error('Oops, error creating instance:', err);
-				    respond({status:500, message:JSON.stringify(err)}, res);
-				  }); //-- createDatabase
-				}); //-- getToken
+				// generateFirebase
+				generateFirebase(req.body.email, req.body.password,  newAppName, res, function(fbObj){
+					createS3Bucket(fbObj.dbName, res, function() {
+				  	uploadToBucket(fbObj.dbName, "fs/seed", res, function(bucketUrl){
+				  		respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
+				  	});
+			  	});
+				});
+
 		});
-		
 	} else {
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
@@ -157,11 +111,6 @@ router.post('/delete', function(req, res) {
 		    console.log('instance created:', instance.toString());
 		    // Save new instance to pyro firebase
 		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName, author:author};
-		    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
-		    	res.writeHead(201, {'Content-Type':'text/plain'});
-					res.write(newAppName);
-				  res.end();
-		    });
 		    
 		  }).catch(function(err) {
 		    console.error('Oops, error creating instance:', err);
@@ -174,6 +123,11 @@ router.post('/delete', function(req, res) {
 });
 router.post('/test', function(req, res){
 	console.log('api test post received:');
+	createS3Bucket(req.body.name, res, function() {
+				  	uploadToBucket(req.body.name, "fs/seed", res, function(bucketUrl){
+				  		respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
+				  	});
+			  	});
 });
 // -------------------Helper Functions------------------
 // Basic Respond
@@ -188,7 +142,181 @@ function respond(argResInfo, res){
 		res.end();
 	}
 }
+// function checkParams(argParamsArray, argObject) {
+// 	var resultsArray = [];
+// 	console.log('checkParams', arguments);
+// 	for (param in argParamsArray) {
+// 		if(!_.has(argObject, param)){
+// 			resultsArray.push(false);
+// 		}
+// 	}
+// 	if(_.has(resultsArray, false)){
+// 		return false
+// 	} else {
+// 		return true;
+// 	}
+// }
+function generateFirebase(argEmail, argPass, argFBName, argRes, cb) {
+	var firebaseObj = {};
+	createFirebaseAccount(argEmail, argPass, argRes, function(){
+		//login to firebase
+		getFirebaseAccount(argEmail, argPass, argRes, function(returnedAccount){
+			  // create new firebase with "pyro-"" ammended to front of the app name
+			  firebaseObj.dbName = 'pyro-'+ argFBName;
+			  console.log('creating instance with name:', firebaseObj.dbName);
+				createFirebaseInstance(returnedAccount, firebaseObj.dbName, argRes, function(instance){
+					console.log('instance created:', instance);
+					//enable email
+					firebaseObj.dbUrl = instance.toString();
+					if(cb){
+						console.log('calling back firebaseObj:', firebaseObj);
+						cb(firebaseObj);
+					} else {
+						respond({status:200, url:instance.toString(), message: 'New Account Created with firebase instance'}, argRes);
+					}
+				});
+			});
+		});
+		//createFirebaseInstance
+}
+function createFirebaseAccount(argEmail, argPass, argRes, cb) {
+	console.log('CreateFirebaseAccount called with:', argEmail, argPass);
+	var urlObj = {
+		protocol:'https:', 
+		host:'admin.firebase.com', 
+		pathname:'/joinbeta', 
+		query: {
+			email: argEmail,
+			password: argPass
+		}
+	};
+	console.log('urlObj:', urlObj);
+	var requestUrl = url.format(urlObj);
+	request.get(requestUrl, function(error, response, body){
+		if(!error || !response.body.hasOwnProperty('error')) {
+			console.log('create request returned:', body);
+			if(cb){
+				cb();
+			} else {
+				respond({success:true, status:200, message:'Firebase account created successfully', fbRes:response}, argRes);
+			}
 
+		} else {
+			console.error('error with create account request:', error);
+			respond({status:500, message:'Error creating Firebase account', error: error}, argRes);
+		}
+	});
+}
+function createFirebaseInstance(argAccount, argFBName, argRes, callback) {
+	console.log('createFirebaseInstance called:', argAccount, argFBName);
+	argAccount.createDatabase(argFBName).then(function(instance) {
+    // var appfb = new Firebase(instance.toString());
+    console.log('instance created:', instance.toString());
+    callback(instance);
+  }).catch(function(err) {
+    console.error('Error creating firebase instance:', err);
+    respond({status:500, message:JSON.stringify(err)}, argRes);
+  }); 
+} //-- createDatabase
+function getFirebaseAccount(argEmail, argPass, argRes, cb){
+	console.log('getFirebaseAccount', argEmail, argPass);
+	FirebaseAccount.getToken(argEmail, argPass).then(function(token) {
+	  var account = new FirebaseAccount(token);
+	  console.log('getFirebaseAccount successful:', account);
+	  if(cb){
+	  	cb(account);
+	  } else {
+	  	respond({status:200, account: account}, argRes)
+	  }
+	}, function(){
+		console.error('Error getting firebase token:');
+		response({error:'Error getting firebase token:'},argRes);
+	}); //-- getToken
+}
+function uploadToBucket(argBucketName, argLocalDir, argRes, cb){
+	console.log('uploadToBucket called:', argBucketName);
+	var upParams = {
+	  localDir: argLocalDir,
+	  s3Params: {
+	    Bucket: argBucketName,
+	    Prefix: "",
+	    ACL:'public-read'
+	  },
+	};
+	var uploader = client.uploadDir(upParams);
+	uploader.on('error', function(err) {
+  	console.error("unable to sync:", err.stack);
+  	respond(err, argRes);
+	});
+	// uploader.on('progress', function() {
+	//   console.log("progress", uploader.progressAmount, uploader.progressTotal);
+	// });
+	uploader.on('end', function() {
+	  console.log("done uploading");
+	  var bucketUrl = argBucketName + '.s3-website-ap-northeast-1.amazonaws.com';
+	  if(cb){
+	  	cb(bucketUrl);
+	  } else {
+			var responseInfo = {status:200, url:bucketUrl, message:'Seed app upload successful to bucket named:' + argBucketName};
+			respond(responseInfo, argRes);
+	  }
+	});	
+}
+function createS3Bucket(argBucketName, argRes, cb) {
+	console.log('createS3Bucket called');
+	var s3bucket = new awsSdk.S3();
+	s3bucket.createBucket({Bucket: argBucketName},function(err1, data1) {
+		if(err1){
+			console.error('error creating bucket:', err1);
+			respond(err1, argRes);
+		} else {
+			console.log('bucketCreated successfully:', data1);
+			// Setup Bucket website
+			s3bucket.putBucketWebsite({
+				Bucket: argBucketName, 
+				WebsiteConfiguration:{
+					IndexDocument:{
+						Suffix:'index.html'
+					}
+				}
+			}, function(err, data){
+				if(err){
+					console.error('Error creating bucket website setup');
+					respond(err, argRes);
+				} else {
+					console.log('website config set for ' + argBucketName, data1.location);
+					cb(data1.location);
+				}
+			});
+		}
+	}); //--createBucket
+}
+function seperateS3Url(argUrl){
+	console.log('seperateS3Url called with', argUrl);
+	var re = /(.+)(?=\.s3)/g;
+	var reRegion = /website.(us.+)(?=\.amazon)/g;
+	var bucketArray = argUrl.match(re);
+	var regionArray = argUrl.match(reRegion);
+	awsSdk.config.region = regionArray[0];
+	var endIdx = bucketArray.indexOf('amazonaws');
+	console.warn("bucket: ", bucketArray,"region: ",regionArray);
+	var bucketString = bucketArray[0]
+	console.warn("bucket: ", bucketString);
+	return bucketString;
+}
+function getListOfObjects(argBucketName, argRes, cb) {
+	console.log('getListOfObjects:', arguments);
+	var bucket = new awsSdk.S3({params: {Bucket: argBucketName}});
+	bucket.listObjects(function (err, data) {
+	  if (err) {
+	    console.error('Could not load objects from S3 - ',err);
+	    respond({status:500, error:err, message:'Could not load objects from S3'}, argRes);
+	  } else {
+	    console.log('Loaded ' + data.Contents.length + ' items from S3:', data.Contents);
+	    cb(data.Contents);
+	  }
+	});
+}
 module.exports = router;
 /* CREATE ---- DEPRECATED
 params:
