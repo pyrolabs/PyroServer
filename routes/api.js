@@ -14,6 +14,19 @@ var client = s3.createClient({
 });
 var fbInfo = {email: process.env.PYRO_INFO_EMAIL, password: process.env.PYRO_INFO_PASS};
 awsSdk.config.update({accessKeyId:process.env.PYRO_SERVER_S3_KEY, secretAccesssKey:process.env.PYRO_SERVER_S3_SECRET})
+
+/* GENERATE
+params:
+	author
+	name
+	Creates new firebase instance on pyro_server firebase account formatted as follows:
+	 "pyro-exampleApp"
+
+	Sends instance info to Firebase:
+	instance:{name:'exampleApp', fburl:'pyro-exampleApp.firebaseio.com', author:'$uid of author'} 
+ 
+*/
+
 router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
@@ -90,7 +103,53 @@ router.post('/generate', function(req, res){
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
+/* CREATE
+params:
+	author
+	name
+	Creates new firebase instance on pyro_server firebase account formatted as follows:
+	 "pyro-exampleApp"
 
+	Sends instance info to Firebase:
+	instance:{name:'exampleApp', fburl:'pyro-exampleApp.firebaseio.com', author:'$uid of author'} 
+ 
+*/
+router.post('/delete', function(req, res) {
+	console.log('Delete request received:', req.body);
+	// [TODO] Make this delete firebase
+		if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
+		var newAppName = req.body.name;
+		var author = req.body.author;
+		console.log('request has name param:', newAppName);
+		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
+		  var account = new FirebaseAccount(token);
+		  var dbName = 'pyro-'+ req.body.name;
+		  account.createDatabase(dbName)
+		  .then(function(instance) {
+		    var appfb = new Firebase(instance.toString());
+		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
+		    console.log('instance created:', instance.toString());
+		    // Save new instance to pyro firebase
+		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName, author:author};
+		    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
+		    	res.writeHead(201, {'Content-Type':'text/plain'});
+					res.write(newAppName);
+				  res.end();
+		    });
+		    
+		  }).catch(function(err) {
+		    console.error('Oops, error creating instance:', err);
+		    res.writeHead(500, {'Content-Type':'text/plain'});
+				res.write(err.toString());
+				res.end();
+		  });
+		})
+	} else {
+		res.writeHead(500, {'Content-Type':'application/json'});
+		res.write('Incorrect request format');
+		res.end();
+	}
+});
 
 /* CREATE
 params:
@@ -169,42 +228,7 @@ router.post('/updateCdn', function(req, res){
 		respond(responseInfo, res);
 	});
 });
-router.post('/delete', function(req, res){
-	console.log('Delete request received:', req.body);
-	// [TODO] Make this delete firebase
-		if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
-		var newAppName = req.body.name;
-		var author = req.body.author;
-		console.log('request has name param:', newAppName);
-		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
-		  var account = new FirebaseAccount(token);
-		  var dbName = 'pyro-'+ req.body.name;
-		  account.createDatabase(dbName)
-		  .then(function(instance) {
-		    var appfb = new Firebase(instance.toString());
-		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
-		    console.log('instance created:', instance.toString());
-		    // Save new instance to pyro firebase
-		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName, author:author};
-		    pyrofb.child('instances').child(newAppName).set(instanceObj, function(){
-		    	res.writeHead(201, {'Content-Type':'text/plain'});
-					res.write(newAppName);
-				  res.end();
-		    });
-		    
-		  }).catch(function(err) {
-		    console.error('Oops, error creating instance:', err);
-		    res.writeHead(500, {'Content-Type':'text/plain'});
-				res.write(err.toString());
-				res.end();
-		  });
-		})
-	} else {
-		res.writeHead(500, {'Content-Type':'application/json'});
-		res.write('Incorrect request format');
-		res.end();
-	}
-});
+
 router.post('/test', function(req, res){
 	console.log('post received:');
 	// Create Bucket
