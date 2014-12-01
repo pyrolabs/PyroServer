@@ -5,6 +5,8 @@ var Firebase = require('firebase');
 var s3 = require('s3');
 var awsSdk = require('s3/node_modules/aws-sdk');
 var pyrofb = new Firebase("https://pyro.firebaseio.com");
+var request = require('request');
+var url = require('url');
 
 var client = s3.createClient({
 	s3Options:{
@@ -14,19 +16,50 @@ var client = s3.createClient({
 });
 var fbInfo = {email: process.env.PYRO_INFO_EMAIL, password: process.env.PYRO_INFO_PASS};
 awsSdk.config.update({accessKeyId:process.env.PYRO_SERVER_S3_KEY, secretAccesssKey:process.env.PYRO_SERVER_S3_SECRET})
+/* CREATE ACCOUNT
+Request Details
+	Request Type: GET
+		URL: https://admin.firebase.com/joinbeta?email=shelby%40pyrolabs.io&password=thisispassword
+	Success Response
+		{
+		"success": true
+		}
+*/
+router.post('/createAccount', function(req, res){
+	console.log('createAccount request received');
+	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')){
+		var email = req.body.email;
+		var pass = req.body.password;
+		var urlObj = {
+			protocol:'https:', 
+			host:'admin.firebase.com', 
+			pathname:'/joinbeta', 
+			query:{
+				email: req.body.email,
+				password: req.body.password
+			}
+		};
+		console.log('urlObj:', urlObj);
+		var requestUrl = url.format(urlObj);
+		request.get(requestUrl, function(error, response, body){
+			if(!error) {
+				console.log('create request returned:', response, body);
+				respond({success:true, status:200, message:'Firebase account created successfully', fbRes:response}, res);
 
+			} else {
+				console.error('error with create account request:', error);
+				respond({status:500, message:'Error creating Firebase account', error: error}, res);
+			}
+		});
+	} else {
+		respond({status:500, message:'Incorrect request format'}, res);
+	}
+});
 /* GENERATE
 params:
 	author
 	name
-	Creates new firebase instance on pyro_server firebase account formatted as follows:
-	 "pyro-exampleApp"
-
-	Sends instance info to Firebase:
-	instance:{name:'exampleApp', fburl:'pyro-exampleApp.firebaseio.com', author:'$uid of author'} 
- 
 */
-
 router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
@@ -103,16 +136,10 @@ router.post('/generate', function(req, res){
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
-/* CREATE
+/* DELETE
 params:
 	author
 	name
-	Creates new firebase instance on pyro_server firebase account formatted as follows:
-	 "pyro-exampleApp"
-
-	Sends instance info to Firebase:
-	instance:{name:'exampleApp', fburl:'pyro-exampleApp.firebaseio.com', author:'$uid of author'} 
- 
 */
 router.post('/delete', function(req, res) {
 	console.log('Delete request received:', req.body);
@@ -124,9 +151,8 @@ router.post('/delete', function(req, res) {
 		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
 		  var account = new FirebaseAccount(token);
 		  var dbName = 'pyro-'+ req.body.name;
-		  account.createDatabase(dbName)
+		  account.deleteDatabase(dbName)
 		  .then(function(instance) {
-		    var appfb = new Firebase(instance.toString());
 		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
 		    console.log('instance created:', instance.toString());
 		    // Save new instance to pyro firebase
@@ -139,19 +165,32 @@ router.post('/delete', function(req, res) {
 		    
 		  }).catch(function(err) {
 		    console.error('Oops, error creating instance:', err);
-		    res.writeHead(500, {'Content-Type':'text/plain'});
-				res.write(err.toString());
-				res.end();
+		    respond({status:500, message:'Error Creating instance', error: err.toString()}, res);
 		  });
 		})
 	} else {
-		res.writeHead(500, {'Content-Type':'application/json'});
-		res.write('Incorrect request format');
-		res.end();
+		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
+router.post('/test', function(req, res){
+	console.log('api test post received:');
+});
+// -------------------Helper Functions------------------
+// Basic Respond
+function respond(argResInfo, res){
+	// {status:500, error:errObj}
+	if(argResInfo && argResInfo.hasOwnProperty('status')){
+		res.writeHead(argResInfo.status, {'Content-Type':'application/json'});
+		res.write(JSON.stringify(argResInfo));
+		res.end();
+	} else {
+		res.write(JSON.stringify(argResInfo));
+		res.end();
+	}
+}
 
-/* CREATE
+module.exports = router;
+/* CREATE ---- DEPRECATED
 params:
 	author
 	name
@@ -197,65 +236,8 @@ params:
 // 		respond({status:500, message:'Incorrect request format'}, res);
 // 	}
 // });
-function respond(argResInfo, res){
-	// {status:500, error:errObj}
-	if(argResInfo && argResInfo.hasOwnProperty('status')){
-		res.writeHead(argResInfo.status, {'Content-Type':'application/json'});
-		res.write(JSON.stringify(argResInfo));
-		res.end();
-	} else {
-		res.write(JSON.stringify(argResInfo));
-		res.end();
-	}
-}
-router.post('/updateCdn', function(req, res){
-	var downParams = {
-		localDir:"fs/seed",
-		s3Params:{
-			Bucket:'pyro-cdn',
-			Prefix:'seed'
-		}
-	};
-	var downloader = client.downloadDir(downParams);
-	downloader.on('end', function(){
-		console.log('seed downloaded to server');
-		var responseInfo = {status:200, message:'Seed downloaded to server'};
-		respond(responseInfo, res)
-	});
-	downloader.on('error', function(err){
-		console.error('unable to download:', err);
-		var responseInfo = {status:500, message:'Error downloading seed'};
-		respond(responseInfo, res);
-	});
-});
 
-router.post('/test', function(req, res){
-	console.log('post received:');
-	// Create Bucket
-		var s3bucket = new awsSdk.S3();
-		s3bucket.createBucket({Bucket: 'pyro-testBucket'},function(err1, data1) {
-			if(err1){
-				console.error('error creating bucket:', err1);
-				respond(err1, res);
-			} else {
-				console.log('bucketCreated successfully');
-			  var data = {Key: 'testKey', Body: 'Hello!', Bucket:'pyro-testBucket'};
-			  s3bucket.putObject(data, function(err, data) {
-			    if (err) {
-			      console.error("Error uploading data: ", err);
-			      respond(err, res);
-			    } 
-			    else {
-			      console.log("Successfully uploaded data to myBucket/myKey");
-	      		// [TODO] Copy new app to new bucket
-		    		// [TODO] Delete local app instance after upload to s3 is completed successfully
-						// Successful response
-						var responseInfo = {status:201, message:'Successful Generation. App available at:'};
-						respond(responseInfo, res);
-					}
-			  }); //--putObject
-			}
-		}); //--createBucket
+// -------------  Useful Code ----------------
 // Bucket copy
 // var knoxCopy = require('knox-copy');
 // 		knoxClient = knoxCopy.createClient({key:process.env.PYRO_SERVER_S3_KEY, secret:process.env.PYRO_SERVER_S3_SECRET, bucket:dbName})
@@ -282,6 +264,3 @@ router.post('/test', function(req, res){
 // 		res.write(JSON.stringify(err));
 // 		res.end();
 // 	});
-});
-
-module.exports = router;

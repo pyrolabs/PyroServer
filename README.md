@@ -17,6 +17,8 @@ The server is currently capable of the following:
 
 # Endpoints
 ## Current
+* `/updateCdn`- `/update` - PlANNED DEPRECATION Updates version of seed that is locationed on the server. To speed up single generate endpoint files are being kept on server instead of downloaded from CDN every time.
+
 * `/api`
     - `/generate` - Generates app
         + Paramerters: 
@@ -24,7 +26,6 @@ The server is currently capable of the following:
     - `/delete` - NOT WORKING Deletes the following:
         + Firebase Instance
         + S3 Bucket
-    - `/update` - PlANNED DEPRECATION Updates version of seed that is locationed on the server. To speed up single generate endpoint files are being kept on server instead of downloaded from CDN every time.
     - `/test` - Testing endpoint that is often changing functionality
 
 ## Planned
