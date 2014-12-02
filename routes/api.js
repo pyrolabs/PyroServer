@@ -10,6 +10,7 @@ var url = require('url');
 var _ = require('underscore');
 var replace = require('replace');
 var fs = require('fs-extra');
+var cookies = require('request-cookies');
 
 var client = s3.createClient({
 	s3Options:{
@@ -93,6 +94,13 @@ router.post('/generate', function(req, res){
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
+router.post('/fbAccount', function(req, res){
+	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
+		createFirebaseAccount(req.body.email, req.body.passwod, res) 
+	} else {
+		respond({status:500, message:'Incorrectly formatted request'});
+	}
+});
 /* CREATE
 params:
 	name
@@ -109,11 +117,13 @@ router.post('/create', function(req, res){
 					var author = req.body.author;
 					// [TODO] check that author is the author of the instance
 					console.log('request has name param:', newAppName);
-					createS3Bucket(newAppName, res, function() {
-				  	uploadToBucket(fbObj.dbName, "fs/seed", res, function(bucketUrl){
-				  		respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
+					createFirebaseInstance(req.body.email, req.body.password, newAppName, res, function(instance){
+						createS3Bucket(newAppName, res, function() {
+					  	uploadToBucket(fbObj.dbName, "fs/seed", res, function(bucketUrl){
+					  		respond({status:200, appUrl:bucketUrl, url:bucketUrl, dbUrl:instance.toString()}, res);
+					  	});
 				  	});
-			  	});
+					});
 				}
 		});
 	} else {
@@ -153,11 +163,11 @@ router.post('/delete', function(req, res) {
 });
 router.post('/test', function(req, res){
 	console.log('api test post received:');
-	// createS3Bucket(req.body.name, res, function() {
-				  	uploadToBucket(req.body.name, "fs/seed", res, function(bucketUrl){
-				  		respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
-				  	});
-			  	// });
+	if(req.body.hasOwnProperty('email') &&req.body.hasOwnProperty('pass') && req.body.hasOwnProperty('name') && req.body.hasOwnProperty('secret')){
+		enableEmailSimpleLogin(req.body.email, req.body.password, req.body.name, req.body.secret, res);
+	} else {
+		respond({status:500, message:'Incorrectly formatted request'}, res);
+	}
 });
 // -------------------Helper Functions------------------
 // Basic Respond
@@ -237,16 +247,18 @@ function createFirebaseAccount(argEmail, argPass, argRes, cb) {
 		}
 	});
 }
-function createFirebaseInstance(argAccount, argFBName, argRes, callback) {
+function createFirebaseInstance(argEmail, argPass, argFBName, argRes, callback) {
 	console.log('createFirebaseInstance called:', argAccount, argFBName);
-	argAccount.createDatabase(argFBName).then(function(instance) {
-    // var appfb = new Firebase(instance.toString());
-    console.log('instance created:', instance.toString());
-    callback(instance);
-  }).catch(function(err) {
-    console.error('Error creating firebase instance:', err);
-    respond({status:500, message:JSON.stringify(err)}, argRes);
-  }); 
+	getFirebaseAccount(argEmail, argPass, argRes, function(account){
+		argAccount.createDatabase(argFBName).then(function(instance) {
+	    // var appfb = new Firebase(instance.toString());
+	    console.log('instance created:', instance.toString());
+	    callback(instance);
+	  }).catch(function(err) {
+	    console.error('Error creating firebase instance:', err);
+	    respond({status:500, message:JSON.stringify(err)}, argRes);
+	  });
+	});
 } //-- createDatabase
 function getFirebaseAccount(argEmail, argPass, argRes, cb){
 	console.log('getFirebaseAccount', argEmail, argPass);
@@ -262,6 +274,59 @@ function getFirebaseAccount(argEmail, argPass, argRes, cb){
 		console.error('Error getting firebase token:');
 		response({error:'Error getting firebase token:'},argRes);
 	}); //-- getToken
+}
+function generateAdminToken(argSecret, argRes, cb){
+	if(argSecret) {
+		console.log('Generate Admin Token called:', argSecret);
+		var tokenGenerator = new FirebaseTokenGenerator(req.body.secret);
+		var authToken = tokenGenerator.createToken({uid: "pyroAdmin"}, 
+		{admin:true, debug:true});
+		if(cb){
+			cb(authToken);
+		} else {
+			respond({status:200, token:authToken}, argRes);
+		}
+	}
+	else {
+		respond({status:500, message:'Incorrect request format'}, argRes);
+	}
+}
+
+function enableEmailSimpleLogin(argEmail, argPass, argAppName, argSecret, argRes, cb){
+	console.log('enableEmailSimpleLogin called:', argAppName);
+	getFirebaseAccount(argEmail, argPass, argRes, function(account){
+		generateAdminToken(argSecret, argRes, function(token){
+			var appHost = "pyro-"argAppName + '.firebaseio.com';
+			var urlObj = {
+				protocol:'https:', 
+				host:appHost, 
+				pathname:'/.settings/authConfig.json', 
+				query: {
+					auth: account
+				}
+			};
+			cookies.add({adminToken:token}, "https://"+ appHost);
+			console.log('cookies:', cookies.toJSON());
+			console.log('urlObj:', urlObj);
+			var requestUrl = url.format(urlObj);
+			request.put(requestUrl, function(error, response, body){
+				if(!error || !response.body.hasOwnProperty('error')) {
+					console.log('create request returned:', body);
+					if(cb){
+						cb();
+					} else {
+						respond({success:true, status:200, message:'Firebase account created successfully', fbRes:response}, argRes);
+					}
+
+				} else {
+					console.error('error with create account request:', error);
+					respond({status:500, message:'Error creating Firebase account', error: error}, argRes);
+				}
+			});
+		});
+	})
+
+
 }
 function uploadToBucket(argBucketName, argLocalDir, argRes, cb){
 	console.log('uploadToBucket called:', argBucketName);
