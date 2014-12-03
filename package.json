@@ -4,7 +4,7 @@
   "author": "Prescott Prue <sprue.dev@gmail.com>",
   "private": true,
   "engines":{
-    "node 0.10.33"
+    "node": "0.10.33"
   },
   "scripts": {
     "start": "node ./bin/www"
