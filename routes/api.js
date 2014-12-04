@@ -101,7 +101,12 @@ router.post('/generate', function(req, res){
  */
 router.post('/fb/account/new', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
-		createFirebaseAccount(req.body.email, req.body.password, res); 
+		createFirebaseAccount(req.body.email, req.body.password, res, function(account){
+			var fbAccountData = {token: account.adminToken, email:req.body.email};
+			pyrofb.child('fbData').child(req.body.email).update(fbAccountData, function(){
+				respond({status:200, account: account, message:'fb account created successfully'}, res);
+			});
+		});
 	} else {
 		respond({status:500, message:'Incorrectly formatted request'});
 	}
@@ -114,7 +119,13 @@ router.post('/fb/account/new', function(req, res){
 // [TODO] Make this a get request?
 router.post('/fb/account/get', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
-		getFirebaseAccount(req.body.email, req.body.password, res); 
+		getFirebaseAccount(req.body.email, req.body.password, res, function(account){
+			var fbAccountData = {token: account.adminToken, email:req.body.email};
+			pyrofb.child('fbData').child(req.body.email).update(fbAccountData, function(){
+				console.log('Account for:' + req.body.email + ' has been updated to:', account.adminToken);
+				respond({status:200, account: account}, res);
+			});
+		}); 
 	} else {
 		respond({status:500, message:'Incorrectly formatted request'});
 	}
@@ -272,22 +283,28 @@ function createFirebaseAccount(argEmail, argPass, argRes, cb) {
 			query: {
 				email: argEmail,
 				password: argPass
-			}
+			},
+			json: true
 		};
 		console.log('urlObj:', urlObj);
 		var requestUrl = url.format(urlObj);
 		request.get(requestUrl, function(error, response, body){
-			if(!error || !body.hasOwnProperty('error')) {
-				console.log('Firebase account created successfully:', body);
+			var bodyData = JSON.parse(body);
+			if(!error && !bodyData.hasOwnProperty('error')) {
+				console.log('Firebase account created successfully:', body.error);
 				if(cb){
-					cb(body);
+					cb(bodyData);
 				} else {
-					respond({success:true, status:200, message:'Firebase account created successfully', account:body, fbRes:response}, argRes);
+					respond({success:true, status:200, message:'Firebase account created successfully', account:bodyData}, argRes);
 				}
 
 			} else {
-				console.error('error with create account request:', error);
-				respond({status:500, message:'Error creating Firebase account', error: error}, argRes);
+				var errObj = {status:500, message:'Error creating Firebase account', error:bodyData.error};
+				if(error){
+					errObj.error2 = error;
+				}
+				console.error('error with create account request:', errObj);
+				respond(errObj, argRes);
 			}
 		});
 	} else {
