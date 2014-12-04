@@ -103,12 +103,12 @@ router.post('/fb/account/new', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
 		createFirebaseAccount(req.body.email, req.body.password, res, function(account){
 			var fbAccountData = {token: account.adminToken, email:req.body.email};
-			pyrofb.child('fbData').child(req.body.email).update(fbAccountData, function(){
+			pyrofb.child('fbData').child(req.body.email).set(fbAccountData, function(){
 				respond({status:200, account: account, message:'fb account created successfully'}, res);
 			});
 		});
 	} else {
-		respond({status:500, message:'Incorrectly formatted request'});
+		respond({status:500, message:'Incorrectly formatted request'}, res);
 	}
 });
 /** Get Fb Account 
@@ -120,14 +120,12 @@ router.post('/fb/account/new', function(req, res){
 router.post('/fb/account/get', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
 		getFirebaseAccount(req.body.email, req.body.password, res, function(account){
-			var fbAccountData = {token: account.adminToken, email:req.body.email};
-			pyrofb.child('fbData').child(req.body.email).update(fbAccountData, function(){
-				console.log('Account for:' + req.body.email + ' has been updated to:', account.adminToken);
-				respond({status:200, account: account}, res);
-			});
+				console.log('Account for:' + req.body.email + ' has been updated to:' + account.adminToken);
+				respond({status:200, account: account, message:' Account loaded successfully'}, res);
+
 		}); 
 	} else {
-		respond({status:500, message:'Incorrectly formatted request'});
+		respond({status:500, message:'Incorrectly formatted request'}, res);
 	}
 });
 /** CREATE
@@ -316,7 +314,7 @@ function createFirebaseAccount(argEmail, argPass, argRes, cb) {
 function createFirebaseInstance(argEmail, argPass, argFBName, argRes, callback) {
 	console.log('createFirebaseInstance called:', argAccount, argFBName);
 	getFirebaseAccount(argEmail, argPass, argRes, function(account){
-		argAccount.createDatabase(argFBName).then(function(instance) {
+		account.createDatabase(argFBName).then(function(instance) {
 	    // var appfb = new Firebase(instance.toString());
 	    console.log('instance created:', instance.toString());
 	    // Enable email & password auth
@@ -370,7 +368,7 @@ function generateAdminToken(argSecret, argRes, cb){
 }
 function getAppFb(argAppName, argRes, cb){
 	console.log('getAppFb called for:', argAppName);
-	pyroFb.child('instances').child(argAppName).once('value', function(instanceSnap){
+	pyrofb.child('instances').child(argAppName).once('value', function(instanceSnap){
 		if(instanceSnap.val() && instanceSnap.val().hasOwnProperty('dbUrl')){
 			var appFbUrl = instanceSnap.val().dbUrl
 			var fb = new Firebase(appFbUrl);
