@@ -168,9 +168,11 @@ router.post('/fb/config', function(req, res){
 	getFirebaseAccountFromUid(req.body.uid).then(function(account){
 		enableEmailAuth(account, "pyro-" + req.body.name, res, function(){
 			console.log('emailAuth enabled successfully');
+			respond({status:200, message:'emailAuth enabled successfully for ' + req.body.name})
 		});
 	}, function(){
 		console.error('error getting firebase account from uid');
+		respond({status:500, message:'error getting firebase account from uid'})
 	});
 });
 router.post('/test', function(req, res){
