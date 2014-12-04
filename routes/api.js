@@ -101,7 +101,7 @@ router.post('/generate', function(req, res){
  */
 router.post('/fb/account/new', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
-		createFirebaseAccount(req.body.email, req.body.passwod, res) 
+		createFirebaseAccount(req.body.email, req.body.password, res); 
 	} else {
 		respond({status:500, message:'Incorrectly formatted request'});
 	}
@@ -264,31 +264,37 @@ function generateFirebase(argEmail, argPass, argFBName, argRes, cb) {
 }
 function createFirebaseAccount(argEmail, argPass, argRes, cb) {
 	console.log('CreateFirebaseAccount called with:', argEmail, argPass);
-	var urlObj = {
-		protocol:'https:', 
-		host:'admin.firebase.com', 
-		pathname:'/joinbeta', 
-		query: {
-			email: argEmail,
-			password: argPass
-		}
-	};
-	console.log('urlObj:', urlObj);
-	var requestUrl = url.format(urlObj);
-	request.get(requestUrl, function(error, response, body){
-		if(!error || !response.body.hasOwnProperty('error')) {
-			console.log('Firebase account created successfully:', body);
-			if(cb){
-				cb(body);
-			} else {
-				respond({success:true, status:200, message:'Firebase account created successfully', account:body, fbRes:response}, argRes);
+	if(argEmail && argPass){
+		var urlObj = {
+			protocol:'https:', 
+			host:'admin.firebase.com', 
+			pathname:'/joinbeta', 
+			query: {
+				email: argEmail,
+				password: argPass
 			}
+		};
+		console.log('urlObj:', urlObj);
+		var requestUrl = url.format(urlObj);
+		request.get(requestUrl, function(error, response, body){
+			if(!error || !body.hasOwnProperty('error')) {
+				console.log('Firebase account created successfully:', body);
+				if(cb){
+					cb(body);
+				} else {
+					respond({success:true, status:200, message:'Firebase account created successfully', account:body, fbRes:response}, argRes);
+				}
 
-		} else {
-			console.error('error with create account request:', error);
-			respond({status:500, message:'Error creating Firebase account', error: error}, argRes);
-		}
-	});
+			} else {
+				console.error('error with create account request:', error);
+				respond({status:500, message:'Error creating Firebase account', error: error}, argRes);
+			}
+		});
+	} else {
+		console.error('Request does not contain correct credentials');
+		respond({status:500, message:'Invalid new account credentials'}, argRes);
+	}
+
 }
 function createFirebaseInstance(argEmail, argPass, argFBName, argRes, callback) {
 	console.log('createFirebaseInstance called:', argAccount, argFBName);
