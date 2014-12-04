@@ -114,7 +114,7 @@ router.post('/fb/account/new', function(req, res){
 // [TODO] Make this a get request?
 router.post('/fb/account/get', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
-		getFirebaseAccount(req.body.email, req.body.passwod, res); 
+		getFirebaseAccount(req.body.email, req.body.password, res); 
 	} else {
 		respond({status:500, message:'Incorrectly formatted request'});
 	}
@@ -327,13 +327,11 @@ function getFirebaseAccount(argEmail, argPass, argRes, cb){
 	  } else {
 	  	respond({status:200, account: account}, argRes)
 	  }
-	}, function(){
-		console.error('Error getting firebase token:');
-		response({error:'Error getting firebase token:'},argRes);
+	}, function(error){
+		console.error('Error getting firebase token:', error);
+		response({status:500, error:'Error getting firebase token:'}, argRes);
 	}); //-- getToken
 }
-
-
 
 
 
