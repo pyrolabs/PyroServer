@@ -71,25 +71,60 @@ router.post('/list', function(req, res) {
 
 router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
-	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')){
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
 		console.log('it is the correct shape');
 		var newAppName = "pyro-" + req.body.name;
+
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
+				console.log('appSnap:', appSnap);
 				if(!appSnap.val()){
-					var author = req.body.author;
 					// [TODO] check that author is the author of the instance
 					console.log('request has name param:', newAppName);
 					// Log into Server Firebase account
 					// generateFirebase
-					generateFirebase(req.body.email, req.body.password,  newAppName, res, function(fbObj){
-						createS3Bucket(fbObj.dbName, res, function() {
-					  	uploadToBucket(fbObj.dbName, "fs/seed", res, function(bucketUrl){
+					createFirebaseInstance(req.body.uid, newAppName, res, function(){
+						createS3Bucket(newAppName, res, function() {
+					  	uploadToBucket(newAppName, "fs/seed", res, function(bucketUrl){
 					  		respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
 					  	});
 				  	});
 					});
 				}
+		}, function(err){
+			console.error('error getting app reference:', err);
+			respond({status:500,  error:err.error, code:err.code}, res);
 		});
+	} else {
+		respond({status:500, message:'Incorrect request format'}, res);
+	}
+});
+/* DELETE
+params:
+	author
+	name
+*/
+router.post('/delete', function(req, res) {
+	console.log('Delete request received:', req.body);
+	// [TODO] Make this delete firebase
+		if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
+		var newAppName = req.body.name;
+		var author = req.body.author;
+		console.log('request has name param:', newAppName);
+		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
+		  var account = new FirebaseAccount(token);
+		  var dbName = 'pyro-'+ req.body.name;
+		  account.deleteDatabase(dbName)
+		  .then(function(instance) {
+		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
+		    console.log('instance created:', instance.toString());
+		    // Save new instance to pyro firebase
+		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName, author:author};
+		    
+		  }).catch(function(err) {
+		    console.error('Oops, error creating instance:', err);
+		    respond({status:500, message:'Error Creating instance', error: err.toString()}, res);
+		  });
+		})
 	} else {
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
@@ -128,97 +163,46 @@ router.post('/fb/account/get', function(req, res){
 		respond({status:500, message:'Incorrectly formatted request'}, res);
 	}
 });
-/** CREATE
-params:
-	name
-	email
-	password
-*/
-router.post('/pyro/generate', function(req, res){
-	console.log('generate request received:', req.body);
-	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')){
-		console.log('it is the correct shape');
-		var newAppName = "pyro-"+req.body.name;
-		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
-				if(!appSnap.val()){
-					var author = req.body.author;
-					// [TODO] check that author is the author of the instance
-					console.log('request has name param:', newAppName);
-					createFirebaseInstance(req.body.email, req.body.password, newAppName, res, function(instance){
-						createS3Bucket(newAppName, res, function() {
-					  	uploadToBucket(fbObj.dbName, "fs/seed", res, function(bucketUrl){
-					  		respond({status:200, appUrl:bucketUrl, url:bucketUrl, dbUrl:instance.toString()}, res);
-					  	});
-				  	});
-					});
-				}
+router.post('/fb/config', function(req, res){
+	console.log('api test post received:', req.body);
+	getFirebaseAccountFromUid(req.body.uid).then(function(account){
+		enableEmailAuth(account, "pyro-" + req.body.name, res, function(){
+			console.log('emailAuth enabled successfully');
 		});
-	} else {
-		respond({status:500, message:'Incorrect request format'}, res);
-	}
-});
-/* DELETE
-params:
-	author
-	name
-*/
-router.post('/delete', function(req, res) {
-	console.log('Delete request received:', req.body);
-	// [TODO] Make this delete firebase
-		if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
-		var newAppName = req.body.name;
-		var author = req.body.author;
-		console.log('request has name param:', newAppName);
-		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
-		  var account = new FirebaseAccount(token);
-		  var dbName = 'pyro-'+ req.body.name;
-		  account.deleteDatabase(dbName)
-		  .then(function(instance) {
-		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
-		    console.log('instance created:', instance.toString());
-		    // Save new instance to pyro firebase
-		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName, author:author};
-		    
-		  }).catch(function(err) {
-		    console.error('Oops, error creating instance:', err);
-		    respond({status:500, message:'Error Creating instance', error: err.toString()}, res);
-		  });
-		})
-	} else {
-		respond({status:500, message:'Incorrect request format'}, res);
-	}
+	}, function(){
+		console.error('error getting firebase account from uid');
+	});
 });
 router.post('/test', function(req, res){
 	console.log('api test post received:', req.body);
-	enableEmailAuth(req.body.email, req.body.password, "pyro-" + req.body.name, res, function(){
-
+	getFirebaseAccountFromUid(req.body.uid).then(function(account){
+		enableEmailAuth(account, "pyro-" + req.body.name, res, function(){
+			console.log('emailAuth enabled successfully');
+		});
+	}, function(){
+		console.error('error getting firebase account from uid');
 	});
-
-
 });
 
 
 
 
-	function enableEmailAuth(argAccountEmail, argAccountPass, argAppName, argRes, cb){
+	function enableEmailAuth(argAccount, argDbName, argRes, cb) {
 		console.log('enableEmailAuth called');
-		getFirebaseAccount(req.body.email, req.body.password, res, function(account){
-			console.log('account returned:', account);
-			account.getDatabase("pyro-" + req.body.name).then(function(instance){
+			argAccount.getDatabase(argDbName).then(function(instance){
 				console.log('instance:', instance.toString());
 				instance.setAuthConfig({password:{"enabled":true}}).then(function(){
 					console.log('Email&Password Authentication enabled succesfully for:', instance.toString());
 					if(cb){
 						cb();
 					} else {
-						respond({status:200, message:'Email&Password Authentication enabled succesfully for ' + req.body.name}, argRes);
+						respond({status:200, message:'Email&Password Authentication enabled succesfully for ' + argDbName}, argRes);
 					}
 				});
 			}, function(error){
 				console.error('error seeing auth config', error);
 				respond({status:500, message:'Error enabling auth settings'}, argRes);
 			});
-		});
 	}
 
 // -------------------Helper Functions------------------
@@ -248,28 +232,23 @@ function respond(argResInfo, res){
 // 		return true;
 // 	}
 // }
-function generateFirebase(argEmail, argPass, argFBName, argRes, cb) {
+function generateFirebase(argUid, argFBName, argRes, cb) {
 	var firebaseObj = {};
-	createFirebaseAccount(argEmail, argPass, argRes, function(){
-		//login to firebase
-		getFirebaseAccount(argEmail, argPass, argRes, function(returnedAccount){
-			  // create new firebase with "pyro-"" ammended to front of the app name
-			  firebaseObj.dbName = 'pyro-'+ argFBName;
-			  console.log('creating instance with name:', firebaseObj.dbName);
-				createFirebaseInstance(returnedAccount, firebaseObj.dbName, argRes, function(instance){
-					console.log('instance created:', instance);
-					//enable email
-					firebaseObj.dbUrl = instance.toString();
-					if(cb){
-						console.log('calling back firebaseObj:', firebaseObj);
-						cb(firebaseObj);
-					} else {
-						respond({status:200, url:instance.toString(), message: 'New Account Created with firebase instance'}, argRes);
-					}
-				});
-			});
-		});
-		//createFirebaseInstance
+	// create new firebase with "pyro-"" ammended to front of the app name
+  firebaseObj.dbName = 'pyro-'+ argFBName;
+  console.log('creating instance with name:', firebaseObj.dbName);
+	createFirebaseInstance(argUid, firebaseObj.dbName, argRes, function(instance){
+		console.log('instance created:', instance);
+		//enable email
+		firebaseObj.dbUrl = instance.toString();
+		if(cb){
+			console.log('calling back firebaseObj:', firebaseObj);
+			cb(firebaseObj);
+		} else {
+			respond({status:200, url:instance.toString(), message: 'New Account Created with firebase instance'}, argRes);
+		}
+	});
+		//generateFirebase
 }
 function createFirebaseAccount(argEmail, argPass, argRes, cb) {
 	console.log('CreateFirebaseAccount called with:', argEmail, argPass);
@@ -311,27 +290,39 @@ function createFirebaseAccount(argEmail, argPass, argRes, cb) {
 	}
 
 }
-function createFirebaseInstance(argEmail, argPass, argFBName, argRes, callback) {
-	console.log('createFirebaseInstance called:', argAccount, argFBName);
-	getFirebaseAccount(argEmail, argPass, argRes, function(account){
-		account.createDatabase(argFBName).then(function(instance) {
+
+function createFirebaseInstance(argUid, argFBName, argRes, callback) {
+	console.log('createFirebaseInstance called:', argUid, argFBName);
+	getFirebaseAccountFromUid(argUid).then(function(account){
+			account.createDatabase(argFBName).then(function(instance) {
 	    // var appfb = new Firebase(instance.toString());
 	    console.log('instance created:', instance.toString());
 	    // Enable email & password auth
-	    instance.setAuthConfig({password:{"enabled":true}}).then(function(){
-	    	callback(instance);
-	    }, function(error){
-	    	console.error('Error setting up email auth');
-	    	respond({status:500, message:JSON.stringify(error)}, argRes);
-	    });
+	    callback(instance.toString());
 	  }).catch(function(err) {
 	    console.error('Error creating firebase instance:', err);
 	    respond({status:500, message:JSON.stringify(err)}, argRes);
 	  });
+	}, function(err1){
+		respond({status:500, message:JSON.stringify(err1)}, argRes);
 	});
+
 } //-- createDatabase
 
-
+function getFirebaseAccountFromUid(argUid){
+	var deferred = Q.defer();
+		pyrofb.child('fbData').child(argUid).once('value', function(fbDataSnap){
+			console.log(fbDataSnap.val());
+			if(fbDataSnap.val() != null) {
+				var account = new FirebaseAccount(fbDataSnap.val().token);
+				deferred.resolve(account);
+			} else {
+				console.log('FbData does not exist for this user');
+				deferred.reject({message:'FbData does not exist for this user'});
+			}
+		});
+		return deferred.promise;
+}
 function getFirebaseAccount(argEmail, argPass, argRes, cb){
 	console.log('getFirebaseAccount', argEmail, argPass);
 	FirebaseAccount.getToken(argEmail, argPass).then(function(token) {
@@ -350,22 +341,22 @@ function getFirebaseAccount(argEmail, argPass, argRes, cb){
 
 
 
-function generateAdminToken(argSecret, argRes, cb){
-	if(argSecret) {
-		console.log('Generate Admin Token called:', argSecret);
-		var tokenGenerator = new FirebaseTokenGenerator(req.body.secret);
-		var authToken = tokenGenerator.createToken({uid: "pyroAdmin"}, 
-		{admin:true, debug:true});
-		if(cb){
-			cb(authToken);
-		} else {
-			respond({status:200, token:authToken}, argRes);
-		}
-	}
-	else {
-		respond({status:500, message:'Incorrect request format'}, argRes);
-	}
-}
+// function generateAdminToken(argSecret, argRes, cb){
+// 	if(argSecret) {
+// 		console.log('Generate Admin Token called:', argSecret);
+// 		var tokenGenerator = new FirebaseTokenGenerator(req.body.secret);
+// 		var authToken = tokenGenerator.createToken({uid: "pyroAdmin"}, 
+// 		{admin:true, debug:true});
+// 		if(cb){
+// 			cb(authToken);
+// 		} else {
+// 			respond({status:200, token:authToken}, argRes);
+// 		}
+// 	}
+// 	else {
+// 		respond({status:500, message:'Incorrect request format'}, argRes);
+// 	}
+// }
 function getAppFb(argAppName, argRes, cb){
 	console.log('getAppFb called for:', argAppName);
 	pyrofb.child('instances').child(argAppName).once('value', function(instanceSnap){
@@ -383,46 +374,6 @@ function getAppFb(argAppName, argRes, cb){
 	});
 }
 
-function enableEmailSimpleLogin(argEmail, argPass, argAppName, argRes, cb){
-	console.log('enableEmailSimpleLogin called:', argAppName);
-	// [TODO] Make this a query so that it will still work even if we change appIds
-			// This is assuming that their firebase account was created with us
-			getFirebaseAccount(argEmail, argPass, argRes, function(account){
-				var appHost = "pyro-"+ argAppName + '.firebaseio.com';
-				var appOrigin = "https://"+ appHost;
-				console.log('appHost:', appHost);
-				var urlObj = {
-					protocol:'https:', 
-					host:appHost, 
-					pathname:'/.settings/authConfig.json',
-					headers:{'Origin': appOrigin, 'Referer':appOrigin + '/'},
-					query: {
-						token: account.adminToken
-					}
-				};
-				cookies.add({adminToken:account}, "https://"+ appHost);
-				// console.log('cookies:', cookies.toJSON());
-				console.log('urlObj:', urlObj);
-				var requestUrl = url.format(urlObj);
-				request.put(requestUrl, function(error, response, body){
-					if(!error || !response.body.hasOwnProperty('error')) {
-						console.log('create request returned:', body);
-						if(cb){
-							cb();
-						} else {
-							respond({success:true, status:200, message:'Firebase account created successfully', fbRes:response}, argRes);
-						}
-					} else {
-						console.error('error with create account request:', error);
-						respond({status:500, message:'Error creating Firebase account', error: error}, argRes);
-					}
-				});
-			});
-
-
-
-
-}
 function uploadToBucket(argBucketName, argLocalDir, argRes, cb){
 	console.log('uploadToBucket called:', argBucketName);
 	var newAppDir = 'fs/'+ argBucketName;
