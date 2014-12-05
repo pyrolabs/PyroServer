@@ -12,6 +12,9 @@ var replace = require('replace');
 var fs = require('fs-extra');
 var cookies = require('request-cookies');
 var Q = require('q');
+var util = require('util');
+var path = require('path');
+
 var client = s3.createClient({
 	s3Options:{
 		accessKeyId: process.env.PYRO_SERVER_S3_KEY,
@@ -85,7 +88,11 @@ router.post('/generate', function(req, res){
 					createFirebaseInstance(req.body.uid, newAppName, res, function(){
 						createS3Bucket(newAppName, res, function() {
 					  	uploadToBucket(newAppName, "fs/seed", res, function(bucketUrl){
-					  		respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
+					  		saveFolderToFirebase("fs/pyro-"+ newAppName).then(function(jsonFolder){
+					  			respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
+					  		}, function(error){
+					  			respond(error,res);
+					  		})
 					  	});
 				  	});
 					});
@@ -189,26 +196,23 @@ JSON.minify = JSON.minify || require("node-json-minify");
 
 router.post('/test2', function(req, res){
 	console.log('api test post received:', req.body);
-	    var util = require('util');
-	    	// console.log(util.inspect(dirTree("fs"), false, null));
-	    	// console.warn(util.inspect(fileTree, false, null));
-	    	var jsonTree = util.inspect(dirTree("fs"), {depth:12}, null);
-	    	// console.log('jsonTree:', jsonTree);
-	    	console.log('filetree', eval('('+jsonTree + ')'));
-	    	pyrofb.child('instances').child(req.body.name).child('appFiles').set(eval('('+jsonTree+ ')'), function(error){
-	    		if(!error){
-	    			respond({status:200, structure:{}},res);
-	    		} else {
-	    			respond({status:500, message:'Error writing file tree to firebase', error:error},res);
 
-	    		}
-	    	});
 
 
 });
-	var fs = require('fs'),
-    path = require('path')
-
+function saveFolderToFirebase(argPath){
+	var deferredSave = Q.defer();
+	var jsonTree = util.inspect(dirTree("fs"), {depth:12}, null);
+	// console.log('jsonTree:', jsonTree);
+	console.log('filetree', eval('('+jsonTree + ')'));
+	pyrofb.child('instances').child(req.body.name).child('appFiles').set(eval('('+jsonTree+ ')'), function(error){
+		if(!error){
+			deferredSave.resolve(eval('('+jsonTree+ ')'));
+		} else {
+			deferredSave.reject({status:500, message:'Error writing file tree to firebase', error:error});
+		}
+	});
+}
 function dirTree(filename) {
     var stats = fs.lstatSync(filename),
         info = {
