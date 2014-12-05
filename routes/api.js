@@ -185,9 +185,77 @@ router.post('/test', function(req, res){
 		console.error('error getting firebase account from uid');
 	});
 });
+JSON.minify = JSON.minify || require("node-json-minify");
+
+router.post('/test2', function(req, res){
+	console.log('api test post received:', req.body);
+	    var util = require('util');
+	    	// console.log(util.inspect(dirTree("fs"), false, null));
+	    	// console.warn(util.inspect(fileTree, false, null));
+	    	var jsonTree = util.inspect(dirTree("fs"), {depth:12}, null);
+	    	// console.log('jsonTree:', jsonTree);
+	    	console.log('filetree', eval('('+jsonTree + ')'));
+	    	pyrofb.child('instances').child(req.body.name).child('appFiles').set(eval('('+jsonTree+ ')'), function(error){
+	    		if(!error){
+	    			respond({status:200, structure:{}},res);
+	    		} else {
+	    			respond({status:500, message:'Error writing file tree to firebase', error:error},res);
+
+	    		}
+	    	});
 
 
+});
+	var fs = require('fs'),
+    path = require('path')
 
+function dirTree(filename) {
+    var stats = fs.lstatSync(filename),
+        info = {
+            path: filename,
+            name: path.basename(filename)
+        };
+
+    if (stats.isDirectory()) {
+        info.type = "folder";
+        info.children = fs.readdirSync(filename).map(function(child) {
+            return dirTree(path.join(filename, child));
+        });
+    } else {
+        // Assuming it's a file. In real life it could be a symlink or
+        // something else!
+        info.type = "file";
+        // convert file to string and remove line breaks
+	    	info.contents = fs.readFileSync(info.path, 'utf8').replace(/(\r\n|\n|\r)/gm,"");
+
+    }
+
+    return info;
+}
+	// function dirTree(filename) {
+	//   var stats = fs.lstatSync(filename),
+	//       info = {
+	//           path: filename,
+	//           name: path.basename(filename)
+	//       };
+	//   if (stats.isDirectory()) {
+	//     info.type = "folder";
+	//     fs.readdirSync(filename).map(function(child) {
+ //        return dirTree(path.join(filename,child));
+	//     });
+	//   } else {
+	//     // Assuming it's a file. In real life it could be a symlink or
+	//     // something else!
+	//     info.type = "file";
+	//     // info.contents = fs.readFileSync(info.path, 'utf8');
+	//   }
+	//   return info;
+	// }
+	// if (module.parent == undefined) {
+	//     // node dirTree.js ~/foo/bar
+	//     var util = require('util');
+	//     console.log(util.inspect(dirTree(process.argv[2]), false, null));
+	// }
 
 	function enableEmailAuth(argAccount, argDbName, argRes, cb) {
 		console.log('enableEmailAuth called');
@@ -453,6 +521,8 @@ function seperateS3Url(argUrl){
 	console.warn("bucket: ", bucketString);
 	return bucketString;
 }
+
+
 function getListOfObjects(argBucketName, argRes, cb) {
 	console.log('getListOfObjects:', arguments);
 	var bucket = new awsSdk.S3({params: {Bucket: argBucketName}});
@@ -462,7 +532,9 @@ function getListOfObjects(argBucketName, argRes, cb) {
 	    respond({status:500, error:err, message:'Could not load objects from S3'}, argRes);
 	  } else {
 	    console.log('Loaded ' + data.Contents.length + ' items from S3:', data.Contents);
-	    cb(data.Contents);
+	    pyrofb.child('instances').child(argBucketName).update({fileStructure:data.Contents}, function(){
+	    	cb(data.Contents);
+	    });
 	  }
 	});
 }
