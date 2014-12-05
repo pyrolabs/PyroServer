@@ -337,7 +337,7 @@ function getFirebaseAccount(argEmail, argPass, argRes, cb){
 	  }
 	}, function(error){
 		console.error('Error getting firebase token:', error.toString());
-		respond({status:500, message:'Error getting firebase account', error: error.toString()}, argRes);
+		respond({status:401, message:'Error getting firebase account', error: error.toString()}, argRes);
 	}); //-- getToken
 }
 
