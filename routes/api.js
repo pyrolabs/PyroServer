@@ -88,11 +88,11 @@ router.post('/generate', function(req, res){
 					createFirebaseInstance(req.body.uid, newAppName, res, function(){
 						createS3Bucket(newAppName, res, function() {
 					  	uploadToBucket(newAppName, "fs/seed", res, function(bucketUrl){
-					  		saveFolderToFirebase("fs/pyro-"+ newAppName).then(function(jsonFolder){
+					  		saveFolderToFirebase(newAppName).then(function(jsonFolder){
 					  			respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
 					  		}, function(error){
 					  			respond(error,res);
-					  		})
+					  		});
 					  	});
 				  	});
 					});
@@ -184,99 +184,70 @@ router.post('/fb/config', function(req, res){
 });
 router.post('/test', function(req, res){
 	console.log('api test post received:', req.body);
-	getFirebaseAccountFromUid(req.body.uid).then(function(account){
-		enableEmailAuth(account, "pyro-" + req.body.name, res, function(){
-			console.log('emailAuth enabled successfully');
-		});
-	}, function(){
-		console.error('error getting firebase account from uid');
+	saveFolderToFirebase(req.body.name).then(function(jsonFolder){
+		console.log('JSON folder:', jsonFolder);
+		respond({status:200, message:'Save folder to firebase successful'}, res);
+	}, function(error){
+		respond(error,res);
 	});
 });
-JSON.minify = JSON.minify || require("node-json-minify");
 
-router.post('/test2', function(req, res){
-	console.log('api test post received:', req.body);
-
-
-
-});
-function saveFolderToFirebase(argPath){
+function saveFolderToFirebase(argAppName){
 	var deferredSave = Q.defer();
-	var jsonTree = util.inspect(dirTree("fs"), {depth:12}, null);
+	var appFolder = "fs/pyro-"+ argAppName;
+	var jsonTree = util.inspect(dirTree(appFolder), {depth:12}, null);
+
 	// console.log('jsonTree:', jsonTree);
 	console.log('filetree', eval('('+jsonTree + ')'));
-	pyrofb.child('instances').child(req.body.name).child('appFiles').set(eval('('+jsonTree+ ')'), function(error){
+	pyrofb.child('appFiles').child(argAppName).set(eval('('+jsonTree+ ')'), function(error){
 		if(!error){
 			deferredSave.resolve(eval('('+jsonTree+ ')'));
 		} else {
 			deferredSave.reject({status:500, message:'Error writing file tree to firebase', error:error});
 		}
 	});
+	return deferredSave.promise;
 }
-function dirTree(filename) {
-    var stats = fs.lstatSync(filename),
-        info = {
-            path: filename,
-            name: path.basename(filename)
-        };
+var mime = require('mime');
+	function dirTree(filename) {
+	  var stats = fs.lstatSync(filename),
+	      info = {
+	          path: filename,
+	          name: path.basename(filename)
+	      };
+	  if (stats.isDirectory()) {
+	    info.type = "folder";
+	    info.children = fs.readdirSync(filename).map(function(child) {
+	        return dirTree(path.join(filename, child));
+	    });
+	  } else {
+	    // Assuming it's a file. In real life it could be a symlink or
+	    // something else!
 
-    if (stats.isDirectory()) {
-        info.type = "folder";
-        info.children = fs.readdirSync(filename).map(function(child) {
-            return dirTree(path.join(filename, child));
-        });
-    } else {
-        // Assuming it's a file. In real life it could be a symlink or
-        // something else!
-        info.type = "file";
-        // convert file to string and remove line breaks
-	    	info.contents = fs.readFileSync(info.path, 'utf8').replace(/(\r\n|\n|\r)/gm,"");
-
-    }
-
-    return info;
-}
-	// function dirTree(filename) {
-	//   var stats = fs.lstatSync(filename),
-	//       info = {
-	//           path: filename,
-	//           name: path.basename(filename)
-	//       };
-	//   if (stats.isDirectory()) {
-	//     info.type = "folder";
-	//     fs.readdirSync(filename).map(function(child) {
- //        return dirTree(path.join(filename,child));
-	//     });
-	//   } else {
-	//     // Assuming it's a file. In real life it could be a symlink or
-	//     // something else!
-	//     info.type = "file";
-	//     // info.contents = fs.readFileSync(info.path, 'utf8');
-	//   }
-	//   return info;
-	// }
-	// if (module.parent == undefined) {
-	//     // node dirTree.js ~/foo/bar
-	//     var util = require('util');
-	//     console.log(util.inspect(dirTree(process.argv[2]), false, null));
-	// }
+	    info.type = "file";
+	    info.filetype = mime.lookup(info.path).split("/")[1];
+	    // convert file to string and remove line breaks
+	  	// info.contents = fs.readFileSync(info.path, 'utf8').replace(/(\r\n|\n|\r)/gm,"");
+	  }
+	  return info;
+	}
 
 	function enableEmailAuth(argAccount, argDbName, argRes, cb) {
 		console.log('enableEmailAuth called');
-			argAccount.getDatabase(argDbName).then(function(instance){
-				console.log('instance:', instance.toString());
-				instance.setAuthConfig({password:{"enabled":true}}).then(function(){
-					console.log('Email&Password Authentication enabled succesfully for:', instance.toString());
-					if(cb){
-						cb();
-					} else {
-						respond({status:200, message:'Email&Password Authentication enabled succesfully for ' + argDbName}, argRes);
-					}
-				});
-			}, function(error){
-				console.error('error seeing auth config', error);
-				respond({status:500, message:'Error enabling auth settings'}, argRes);
+		argAccount.getDatabase(argDbName).then(function(instance){
+			console.log('instance:', instance.toString());
+			instance.setAuthConfig({password:{"enabled":true}}).then(function(){
+				console.log('Email&Password Authentication enabled succesfully for:', instance.toString());
+				if(cb){
+					cb();
+				} else {
+					respond({status:200, message:'Email&Password Authentication enabled succesfully for ' + argDbName}, argRes);
+				}
 			});
+		}, function(error){
+			console.error('error seeing auth config', error);
+			respond({status:500, message:'Error enabling auth settings'}, argRes);
+		});
 	}
 
 // -------------------Helper Functions------------------
