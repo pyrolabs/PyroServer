@@ -205,7 +205,7 @@ function uploadFromRamList(argBucketName, argFileKey, argUid){
 		if(fileSnap) {
 			//file exists in file ref
 			var fileString = fileSnap.val();
-			saveToFileOnS3(argBucketName, argFileKey, argFileContents).then(function(returnedData){
+			saveToFileOnS3(argBucketName, argFileKey, fileString).then(function(returnedData){
 				console.log('File saved to s3. Returning:', returnedData);
 				deferred.resolve(returnedData);
 			}, function(){
