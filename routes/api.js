@@ -264,7 +264,7 @@ function createFirebaseAccount(argEmail, argPass) {
 		request.get(requestUrl, function(error, response, body){
 			var bodyData = JSON.parse(body);
 			if(!error && !bodyData.hasOwnProperty('error')) {
-				console.log('Firebase account created successfully:', body.error);
+				console.log('Firebase account created successfully:', bodyData);
 				deferred.resolve(bodyData);
 			} else {
 				console.warn('[createFirebaseAccount] Error creating Firebase account:', bodyData.error);
