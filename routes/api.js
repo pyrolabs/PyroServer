@@ -151,6 +151,91 @@ router.post('/app/new', function(req, res){
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
+/** Upload app by pulling the information from Firebase
+ * @endpoint /app/new
+ * @params {string} Name Name of list to retreive
+ * @params {string} Uid Uid of user to generate for
+ */
+router.post('/app/upload', function(req, res){
+	console.log('new request received:', req.body);
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid') && req.body.hasOwnProperty('filePath')){
+		var appName = req.body.name;
+		var bucketName = "pyro-" + req.body.name;
+		var userUid = req.body.uid;
+		var path = req.body.filePath;
+
+		console.log('[/app/upload] request is the correct shape');
+		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
+				console.log('[/app/upload appSnap:]:', appSnap);
+				var appData = appSnap.val();
+				if(appData) {
+					console.log('[/app/upload app data:]', appData);
+					// [TODO] Check for values to exist
+					uploadFromRamList(bucketName, path, userUid).then(function(fileInfo){
+						console.log('uploadFromRamList returned:', fileInfo);
+						respond({status:200,  message:'Success', info: fileInfo}, res)
+					}, function(err){
+						console.error('error getting app reference:', err);
+						respond({status:500,  error:err}, res);
+					});
+				}
+				else {
+					respond({status:500, message:'App data not found'}, res);
+				}
+		}, function(err){
+			console.error('error getting app reference:', err);
+			respond({status:500,  error:err.error, code:err.code}, res);
+		});
+	} else {
+		respond({status:500, message:'Incorrect request format'}, res);
+	}
+});
+/** Upload app file to s3 by pulling the information from Firebase
+ * @endpoint /app/new
+ * @params {object} uploadObject Name of list to retreive
+ * @params {string} uploadObject.appName Name of app to 
+ */
+function uploadFromRamList(argBucketName, argFilePath, argUid){
+	console.log('uploadFromRamList called');
+	var deferred = Q.defer()
+	// File reference in userRam list
+	var fileRef = pyrofb.child('userRam').child(argUid).child(argBucketName).child(argFilePath);
+	// Load File
+	fileRef.once('value', function(fileSnap){
+		if(fileSnap) {
+			//file exists in file ref
+			var fileString = fileSnap.val();
+			saveToFileOnS3(argBucketName, argFilePath, argFileContents).then(function(returnedData){
+				console.log('File saved to s3. Returning:', returnedData);
+				deferred.resolve(returnedData);
+			}, function(){
+				console.error('Error saving file to S3');
+				deferred.reject({status:500, message:'File to upload not found'});
+			});
+		} else {
+			console.warn('file does not exist in ram');
+			deferred.reject({status:500, message:'File to upload not found'});
+		}
+	});
+	return deferred.promise;
+}
+
+function saveToFileOnS3(argBucketName, argFilePath, argFileContents){
+	console.log('[saveToFileOnS3] saveFile called', arguments);
+  var deferred = Q.defer();
+  var saveParams = {Bucket:argBucketName, Key:argFilePath,  Body: argFileContents};
+  console.log('[saveToFileOnS3] saveParams:', saveParams)
+  s3.putObject(saveParams, function(err, data){
+    if(!err){
+      console.log('[saveToFileOnS3] file saved successfully. Returning:', data);
+      deferred.resolve(data);
+    } else {
+      console.log('[saveToFileOnS3] error saving file:', err);
+      deferred.reject(err);
+    }
+  });
+  return deferred.promise;
+}
 /** New Fb Account 
  * @endpoint api/fb/account/get
  * @params {string} email Email of account to get
@@ -826,7 +911,7 @@ function dirTree(filename) {
   var stats = fs.lstatSync(filename)
   var info = {
     path: filename,
-    name: path.basename(filename)
+    name: path.basename(filename).replace("fs/", "");
   };
   if (stats.isDirectory()) {
     info.type = "folder";
