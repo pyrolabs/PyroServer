@@ -122,7 +122,7 @@ router.post('/generate', function(req, res){
  * @params {string} Uid Uid of user to generate for
  */
 router.post('/app/new', function(req, res){
-	console.log('generate request received:', req.body);
+	console.log('new request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
 		console.log('[/generate] request is the correct shape');
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
@@ -577,7 +577,7 @@ function createS3Bucket(argBucketName) {
 	var deferred = Q.defer();
 	if(argBucketName) {
 		var s3bucket = new awsSdk.S3();
-		s3bucket.createBucket({Bucket: argBucketName},function(err1, data1) {
+		s3bucket.createBucket({Bucket: argBucketName, ACL:"public-read"},function(err1, data1) {
 			if(err1){
 				console.error('error creating bucket:', err1);
 				deferred.reject({status:500, error:err1});
@@ -597,7 +597,36 @@ function createS3Bucket(argBucketName) {
 						deferred.reject({status:500, error:err});
 					} else {
 						console.log('website config set for ' + argBucketName, data1.location);
-						deferred.resolve(data1.location);
+						s3bucket.putBucketCors({
+							Bucket:argBucketName, 
+							CORSConfiguration:{
+								CORSRules: [
+						      {
+						        AllowedHeaders: [
+						          '*',
+						        ],
+						        AllowedMethods: [
+						          'HEAD','GET', 'PUT', 'POST'
+						        ],
+						        AllowedOrigins: [
+						          'http://*', 'https://*'
+						        ],
+						        // ExposeHeaders: [
+						        //   'STRING_VALUE',
+						        // ],
+						        MaxAgeSeconds: 3000
+						      },
+						    ]
+							}
+						}, function(err2, data2){
+							if(err2){
+								console.error('Error creating bucket website setup');
+								deferred.reject({status:500, error:err2});
+							} else {
+								console.log('bucket cors set successfully:', data2);
+								deferred.resolve(data2.location);
+							}
+						});
 					}
 				});
 			}
