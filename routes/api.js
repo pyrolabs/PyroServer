@@ -15,22 +15,34 @@ var Q = require('q');
 var util = require('util');
 var path = require('path');
 var mime = require('mime');
-
-var client = s3.createClient({
-	s3Options:{
-		accessKeyId: process.env.PYRO_SERVER_S3_KEY,
-		secretAccessKey: process.env.PYRO_SERVER_S3_SECRET
+var client = configureS3AndGetClient();
+var fbInfo = {
+	email: process.env.PYRO_INFO_EMAIL, 
+	password: process.env.PYRO_INFO_PASS
+};
+// Set S3 credentials from environment variables
+function configureS3AndGetClient(){
+	if(process.env.hasOwnProperty('PYRO_SERVER_S3_KEY')&&process.env.hasOwnProperty('PYRO_SERVER_S3_SECRET')){
+		awsSdk.config.update({
+			accessKeyId:process.env.PYRO_SERVER_S3_KEY, 
+			secretAccesssKey:process.env.PYRO_SERVER_S3_SECRET
+		});
+		return s3.createClient({
+			s3Options:{
+				accessKeyId: process.env.PYRO_SERVER_S3_KEY,
+				secretAccessKey: process.env.PYRO_SERVER_S3_SECRET
+			}
+		});
+	} else {
+		throw Error('Environment not setup properly. Check S3 keys');
 	}
-});
-var fbInfo = {email: process.env.PYRO_INFO_EMAIL, password: process.env.PYRO_INFO_PASS};
-awsSdk.config.update({accessKeyId:process.env.PYRO_SERVER_S3_KEY, secretAccesssKey:process.env.PYRO_SERVER_S3_SECRET})
-
-/** List objects from s3 given name
- * @params {string} Name Name of list to retreive
- * @description
+}
+/** UNSECURE List objects from s3 given name
+ * @endpoint /list
+ * @params {string} Name name of bucket of which to list items
  */
-//[TODO] THIS NEEDS TO BE SECURED
 router.post('/list', function(req, res) {
+//[TODO] THIS NEEDS TO BE SECURED
 	getListOfObjects(req.body.name).then(function(returnedList){
 		console.log('getListOfObjects returned:', returnedList);
 		respond({list:returnedList, status:200}, res);
@@ -39,17 +51,16 @@ router.post('/list', function(req, res) {
 		respond(resObj, res);
 	});
 });
-
 /** Create a new database on Firebase, create a new Bucket on S3, copy the seed to the bucket, set the bucket permissions
+ * @endpoint /generate
  * @params {string} Name Name of list to retreive
- * @description
+ * @params {string} Uid Uid of user to generate for
  */
 router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
 		console.log('it is the correct shape');
 		var newAppName = "pyro-" + req.body.name;
-
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
 				console.log('appSnap:', appSnap);
 				if(!appSnap.val()){
@@ -77,11 +88,11 @@ router.post('/generate', function(req, res){
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
-/* DELETE
-params:
-	author
-	name
-*/
+/** NOT WORKING  Delete the pyro application given name. This includes the S3 bucket, and should have the option to include the Firebase instance and Account seperatetly in the delete.
+ * @endpoint api/delete
+ * @params {string} email Email of account to get
+ * @params {string} password Password of account to get
+ */
 router.post('/delete', function(req, res) {
 	console.log('Delete request received:', req.body);
 	// [TODO] Make this delete firebase
@@ -139,18 +150,31 @@ router.post('/fb/account/get', function(req, res){
 		respond({status:500, message:'Incorrectly formatted request'}, res);
 	}
 });
+/** Configure email/password auth on Firebase account given uid 
+ * @endpoint api/fb/config
+ * @params {string} uid Uid of account to enable email auth on
+ * @params {string} name Name of instance to enable email auth on
+ */
 router.post('/fb/config', function(req, res){
 	console.log('api test post received:', req.body);
 	getFirebaseAccountFromUid(req.body.uid).then(function(account){
 		enableEmailAuth(account, "pyro-" + req.body.name, res, function(){
 			console.log('emailAuth enabled successfully');
-			respond({status:200, message:'emailAuth enabled successfully for ' + req.body.name})
+			respond({status:200, message:'emailAuth enabled successfully for ' + req.body.name}, res);
 		});
-	}, function(){
-		console.error('error getting firebase account from uid');
-		respond({status:500, message:'error getting firebase account from uid'})
+	}, function(err){
+		console.error('error getting firebase account from uid', err);
+		var resObj = {status:500, message:'error getting firebase account from uid'};
+		if(err){
+			resObj.error = err;
+		}
+		console.log('Resonding with:', resObj);
+		respond(resObj, res);
 	});
 });
+/** TEST ENDPOINT Params are always changing so they are not listed
+ * @endpoint api/tes
+ */
 router.post('/test', function(req, res){
 	console.log('api test post received:', req.body);
 	saveFolderToFirebase(req.body.name).then(function(jsonFolder){
@@ -160,33 +184,12 @@ router.post('/test', function(req, res){
 		respond(error,res);
 	});
 });
-/** Converts a folder structure to JSON including file types given App name
- * @function saveFolderToFirebase
- * @params {string} AppName Name of App that you would like to get
- * @description Adds extension to access folder on local system. In our case that is "fs/pyro-"
- */
-function saveFolderToFirebase(argAppName){
-	var deferredSave = Q.defer();
-	var appFolder = "fs/pyro-"+ argAppName;
-	var jsonTree = util.inspect(dirTree(appFolder), {depth:12}, null);
-
-	// console.log('jsonTree:', jsonTree);
-	console.log('filetree', eval('('+jsonTree + ')'));
-	pyrofb.child('appFiles').child(argAppName).set(eval('('+jsonTree+ ')'), function(error){
-		if(!error){
-			deferredSave.resolve(eval('('+jsonTree+ ')'));
-		} else {
-			deferredSave.reject({status:500, message:'Error writing file tree to firebase', error:error});
-		}
-	});
-	return deferredSave.promise;
-}
-
-
-
-
 // -------------------Helper Functions------------------
-// Basic Respond
+/** Respond with a status header if available
+ * @function respond
+ * @params {string} Response info
+ * @params {string} res Response object to send responses with/to
+ */
 function respond(argResInfo, res){
 	// {status:500, error:errObj}
 	if(argResInfo && argResInfo.hasOwnProperty('status')){
@@ -198,20 +201,11 @@ function respond(argResInfo, res){
 		res.end();
 	}
 }
-// function checkParams(argParamsArray, argObject) {
-// 	var resultsArray = [];
-// 	console.log('checkParams', arguments);
-// 	for (param in argParamsArray) {
-// 		if(!_.has(argObject, param)){
-// 			resultsArray.push(false);
-// 		}
-// 	}
-// 	if(_.has(resultsArray, false)){
-// 		return false
-// 	} else {
-// 		return true;
-// 	}
-// }
+/** Create a new Database, and copy a new app to S3 under the same bucket name as the database
+ * @function createFirebaseAccount
+ * @params {string} Email Email of new Firebase account to create
+ * @params {string} Password Name of new instance
+ */
 function generateFirebase(argUid, argName) {
 	console.log('generateFirebase:', argUid);
 	// create new firebase with "pyro-"" ammended to front of the app name
@@ -231,9 +225,15 @@ function generateFirebase(argUid, argName) {
 	});
 	return deferred.promise;
 }
+/** Create a new Firebase Account
+ * @function createFirebaseAccount
+ * @params {string} Email Email of new Firebase account to create
+ * @params {string} Password Name of new instance
+ */
 function createFirebaseAccount(argEmail, argPass) {
-	var deferred = Q.defer();
+	// [TODO] Add a counter to pyroApp of how many firebase accounts we have created
 	console.log('createFirebaseAccount() called with:', argEmail, argPass);
+	var deferred = Q.defer();
 	// check for account
 	if(argEmail && argPass){
 		var urlObj = {
@@ -270,7 +270,11 @@ function createFirebaseAccount(argEmail, argPass) {
 	}
 	return deferred.promise;
 }
-
+/** Create a new Firebase App
+ * @function createFirebaseInstance
+ * @params {string} Uid Uid of user to create firebase instance on (Auth info is looked up)
+ * @params {string} Name Name of new instance
+ */
 function createFirebaseInstance(argUid, argName) {
 	console.log('createFirebaseInstance called:', argUid, argName);
 	var deferred = Q.defer();
@@ -288,8 +292,12 @@ function createFirebaseInstance(argUid, argName) {
 	    deferred.reject({status:500, message:JSON.stringify(err1)});
 	});
 	return deferred.promise;
-} //-- createDatabase
-
+}
+/** Enable email authentication on Firebase given firebase account and name of instance to enable email auth on
+ * @function enableEmailAuth
+ * @params {string} account Email of account you would like to get
+ * @params {string} dbName Name of database to enable email authentication on
+ */
 function enableEmailAuth(argAccount, argDbName) {
 	console.log('enableEmailAuth called');
 	var deferred = Q.defer();
@@ -305,6 +313,10 @@ function enableEmailAuth(argAccount, argDbName) {
 	});
 	return deferred.promise;
 }
+/** Get Firebase Account given email and password
+ * @function getFirebaseAccountFromUid
+ * @params {string} uid Uid of user to get Firebase Account of
+ */
 function getFirebaseAccountFromUid(argUid){
 	console.log('getFirebaseAccountFromUid:', argUid);
 	var deferred = Q.defer();
@@ -483,7 +495,27 @@ function getListOfObjects(argBucketName) {
 	}
 	return deferred.promise;
 }
+/** Converts a folder structure to JSON including file types given App name
+ * @function saveFolderToFirebase
+ * @params {string} AppName Name of App that you would like to get
+ * @description Adds extension to access folder on local system. In our case that is "fs/pyro-"
+ */
+function saveFolderToFirebase(argAppName){
+	var deferredSave = Q.defer();
+	var appFolder = "fs/pyro-"+ argAppName;
+	var jsonTree = util.inspect(dirTree(appFolder), {depth:12}, null);
 
+	// console.log('jsonTree:', jsonTree);
+	console.log('filetree', eval('('+jsonTree + ')'));
+	pyrofb.child('appFiles').child(argAppName).set(eval('('+jsonTree+ ')'), function(error){
+		if(!error){
+			deferredSave.resolve(eval('('+jsonTree+ ')'));
+		} else {
+			deferredSave.reject({status:500, message:'Error writing file tree to firebase', error:error});
+		}
+	});
+	return deferredSave.promise;
+}
 /** Create a directory tree in JSON format given a path
  * @function dirTree
  * @params {string} Path Folder or File path that contains structure to JSONify
@@ -512,9 +544,6 @@ function dirTree(filename) {
 }
 
 module.exports = router;
-
-
-
 /* CREATE ---- DEPRECATED
 params:
 	author
@@ -524,9 +553,7 @@ params:
 
 	Sends instance info to Firebase:
 	instance:{name:'exampleApp', fburl:'pyro-exampleApp.firebaseio.com', author:'$uid of author'} 
- 
 */
-
 // router.post('/create', function(req, res){
 // 	console.log('request received:', req.body);
 // 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
@@ -561,8 +588,22 @@ params:
 // 		respond({status:500, message:'Incorrect request format'}, res);
 // 	}
 // });
-
 // -------------  Useful Code ----------------
+// Check params function that may or may not work
+// function checkParams(argParamsArray, argObject) {
+// 	var resultsArray = [];
+// 	console.log('checkParams', arguments);
+// 	for (param in argParamsArray) {
+// 		if(!_.has(argObject, param)){
+// 			resultsArray.push(false);
+// 		}
+// 	}
+// 	if(_.has(resultsArray, false)){
+// 		return false
+// 	} else {
+// 		return true;
+// 	}
+// }
 // Admin Token from Firebase's exposed library
 // function generateAdminToken(argSecret, argRes, cb){
 // 	if(argSecret) {
