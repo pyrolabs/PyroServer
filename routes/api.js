@@ -283,7 +283,7 @@ function newApp(newAppName){
 	// create new firebase with "pyro-"" ammended to front of the app name
 	var deferred = Q.defer();
 	var appObj = {name: newAppName};
-	var bucketName = "pyro-" + req.body.name;
+	var bucketName = "pyro-" + newAppName;
 	createS3Bucket(newAppName).then(function() {
   	uploadToBucket(bucketName, "fs/seed", newAppName).then(function(bucketUrl){
   		console.log('returned from upload to bucket:', bucketUrl);
@@ -326,7 +326,7 @@ function generatePyroApp(argUid, argName) {
 	  	uploadToBucket(firebaseObj.dbName, "fs/seed").then(function(bucketUrl){
 	  		console.log('[generatePyroApp] uploadToBucket returned:', bucketUrl);
 	  		firebaseObj.appUrl = bucketUrl;
-	  		saveFolderToFirebase(firebaseObj.dbName).then(function(jsonFolder){
+	  		saveFolderToFirebase(argName).then(function(jsonFolder){
 	  			// firebaseObj.structure = jsonFolder;
 	  			deferred.resolve(firebaseObj);
 	  		}, function(error){
@@ -664,14 +664,16 @@ function getListOfS3BucketContents(argBucketName) {
 function saveFolderToFirebase(argAppName){
 	var deferredSave = Q.defer();
 	var appFolder = "fs/pyro-"+ argAppName;
+	console.log('[saveFolderToFirebase] appFolder:', appFolder);
 	var jsonTree = util.inspect(dirTree(appFolder), {depth:12}, null);
-
-	// console.log('jsonTree:', jsonTree);
-	console.log('filetree', eval('('+jsonTree + ')'));
+	console.log('[saveFolderToFirebase] jsonTree:', jsonTree);
+	console.log('[saveFolderToFirebase] filetree', eval('('+jsonTree + ')'));
 	pyrofb.child('appFiles').child(argAppName).set(eval('('+jsonTree+ ')'), function(error){
 		if(!error){
+			console.log('[saveFolderToFirebase] filetree', eval('('+jsonTree + ')'));
 			deferredSave.resolve(eval('('+jsonTree+ ')'));
 		} else {
+			console.error('[saveFolderToFirebase] error setting folder structure to firebase:');
 			deferredSave.reject({status:500, message:'Error writing file tree to firebase', error:error});
 		}
 	});
