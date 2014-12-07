@@ -31,8 +31,8 @@ var corsOptions = {origin: function(origin, callback){
     var originIsWhitelisted = whitelist.indexOf(origin) !== -1;
     callback(null, originIsWhitelisted);
   }};
-app.use(cors());
-app.options('*', cors());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use('/', routes);
 app.use('/auth', auth);
 app.use('/api', api);
