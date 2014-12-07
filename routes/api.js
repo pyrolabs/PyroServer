@@ -287,6 +287,7 @@ function newApp(newAppName){
 	var bucketName = "pyro-" + req.body.name;
 	createS3Bucket(newAppName).then(function() {
   	uploadToBucket(bucketName, "fs/seed", newAppName).then(function(bucketUrl){
+  		console.log('returned from upload to bucket:', bucketUrl);
   		appObj.appUrl = bucketUrl;
   		saveFolderToFirebase(newAppName).then(function(jsonFolder){
   			// appObj.structure = jsonFolder;
@@ -324,6 +325,7 @@ function generatePyroApp(argUid, argName) {
 		firebaseObj.fbUrl = returnedFbUrl;
 		createS3Bucket(firebaseObj.dbName).then(function() {
 	  	uploadToBucket(firebaseObj.dbName, "fs/seed").then(function(bucketUrl){
+	  		console.log('[generatePyroApp] uploadToBucket returned:', bucketUrl);
 	  		firebaseObj.appUrl = bucketUrl;
 	  		saveFolderToFirebase(firebaseObj.dbName).then(function(jsonFolder){
 	  			// firebaseObj.structure = jsonFolder;
@@ -562,9 +564,8 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
 		  console.log("Upload succesful");
 			// [TODO] Delete new app folders
 		  var bucketUrl = argBucketName + '.s3-website-us-east-1.amazonaws.com';
-		  var resObj = {status:200, url:bucketUrl, message:'Seed app upload successful to bucket named:' + argBucketName};
 		  console.log('uploadToBucket responding:', resObj);
-		  deferred.resolve(resObj);
+		  deferred.resolve(bucketUrl);
 		});	
 	})
 	return deferred.promise;
