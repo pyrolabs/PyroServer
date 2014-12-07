@@ -254,12 +254,18 @@ router.post('/delete', function(req, res) {
  */
 router.post('/test', function(req, res){
 	console.log('api test post received:', req.body);
-	saveFolderToFirebase(req.body.name).then(function(jsonFolder){
-		console.log('JSON folder:', jsonFolder);
-		respond({status:200, message:'Save folder to firebase successful'}, res);
+	var bucketName = "pyro-"+req.body.name
+	deleteS3Bucket(bucketName).then(function(){
+		respond({status:200, message:'S3 bucket deleted successfully'}, res)
 	}, function(error){
-		respond(error,res);
+		respond(error,res)
 	});
+	// saveFolderToFirebase(req.body.name).then(function(jsonFolder){
+	// 	console.log('JSON folder:', jsonFolder);
+	// 	respond({status:200, message:'Save folder to firebase successful'}, res);
+	// }, function(error){
+	// 	respond(error,res);
+	// });
 });
 // -------------------Helper Functions------------------
 /** Respond with a status header if available
@@ -323,11 +329,13 @@ function generatePyroApp(argUid, argName) {
 	  console.log('[generatePyroApp] create firebase successfully returned:', returnedFbUrl);
 		firebaseObj.fbUrl = returnedFbUrl;
 		createAndConfigS3Bucket(firebaseObj.dbName).then(function() {
+			console.log('[generatePyroApp] createAndConfigS3Bucket returned. Calling uploadToBucket');
 	  	uploadToBucket(firebaseObj.dbName, "fs/seed").then(function(bucketUrl){
-	  		console.log('[generatePyroApp] uploadToBucket returned:', bucketUrl);
-	  		firebaseObj.appUrl = bucketUrl;
+				console.log('[generatePyroApp] uploadToBucket returned. Calling saveFolderToFirebase', bucketUrl);
+		  	firebaseObj.appUrl = bucketUrl;
 	  		saveFolderToFirebase(argName).then(function(jsonFolder){
 	  			// firebaseObj.structure = jsonFolder;
+	  			console.log('[generatePyroApp] saveFolderToFirebase successful');
 	  			deferred.resolve(firebaseObj);
 	  		}, function(error){
 	  				console.error('[generatePyroApp] saving folder structure to Firebase:', err);
@@ -563,6 +571,7 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
 		  console.log("Upload succesful");
 			// [TODO] Delete new app folders
 		  var bucketUrl = argBucketName + '.s3-website-us-east-1.amazonaws.com';
+		  console.log('uploader returning:', bucketUrl);
 		  deferred.resolve(bucketUrl);
 		});	
 	})
@@ -573,21 +582,50 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
  * @params {string} bucketName Name of bucket to create
  */
 	function createS3Bucket(argBucketName){
+		console.log('createS3Bucket called', argBucketName)
 		var deferredCreate = Q.defer();
 		var s3bucket = new awsSdk.S3();
-		s3bucket.createBucket({Bucket: argBucketName, ACL:"public-read"},function(err, data) {
+		s3bucket.createBucket({Bucket: argBucketName, ACL:'public-read'},function(err, data) {
 			if(err){
 				console.error('error creating bucket:', err);
 				deferredCreate.reject({status:500, error:err});
 			} else {
 				console.log('bucketCreated successfully:', data);
 				// Setup Bucket website
-				deferredCreate.resolve(data.location);
+				var dataContents = data.toString()
+				deferredCreate.resolve(dataContents.locationn);
 			}
 		});
 		return deferredCreate.promise;
 	}
+	function deleteS3Bucket(argBucketName){
+		console.log('deleteS3Bucket called', argBucketName)
+		var deferredDelete = Q.defer();
+		var s3bucket = new awsSdk.S3();
+		// Empty bucket
+		var deleteTask = client.deleteDir({Bucket: argBucketName});
+
+		deleteTask.on('error', function(err){
+			console.error('error deleting bucket:', err);
+			deferredDelete.reject({status:500, error:err});
+		});
+		deleteTask.on('end', function(){
+			console.log('bucket deleted successfully:');
+			// Delete bucket
+			s3bucket.deleteBucket({Bucket: argBucketName}, function(err, data) {
+				if(err){
+					console.error('error creating bucket:', err);
+					deferredDelete.reject({status:500, error:err});
+				} else {
+					// Setup Bucket website
+					deferredDelete.resolve({message:'Bucket deleted successfully'});
+				}
+			});
+		});
+		return deferredDelete.promise;
+	}
 	function setS3Website(argBucketName){
+		console.log('setS3Website called:', argBucketName);
 		var s3bucket = new awsSdk.S3();
 		var deferredSite = Q.defer();
 		s3bucket.putBucketWebsite({
@@ -609,6 +647,7 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
 		return deferredSite.promise;
 	}
   function setS3Cors(argBucketName){
+  	console.log('setS3Cors called:', argBucketName);
 		var s3bucket = new awsSdk.S3();
 		var deferredCors = Q.defer();
 		s3bucket.putBucketCors({
@@ -644,19 +683,19 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
 		return deferredCors.promise;
  }
 function createAndConfigS3Bucket(argBucketName) {
-	console.log('createS3Bucket called');
+	console.log('createAndConfigS3Bucket called', argBucketName);
 	var deferred = Q.defer();
 	if(argBucketName) {
 			createS3Bucket(argBucketName).then(function(location){
-				setS3Website(argBucketName).then(function(){
-					setS3Cors(argBucketName).then(function(){
+				console.log('[createAndConfigS3Bucket] createS3Bucket successful:', location);
+				setS3Cors(argBucketName).then(function(){
+					console.log('[createAndConfigS3Bucket] setS3Cors successful');
+					setS3Website(argBucketName).then(function(){
+						console.log('[createAndConfigS3Bucket] setS3Website successful:');
 						deferred.resolve(argBucketName);
-					}, function(err){
-						console.error('Error setting new bucket cors config', err);
-						deferred.reject(err);
 					});
 				}, function(err){
-					console.error('Setting new bucket site', err);
+					console.error('Error setting new bucket cors config', err);
 					deferred.reject(err);
 				});
 			}, function(err){
