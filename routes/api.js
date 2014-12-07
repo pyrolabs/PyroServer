@@ -146,8 +146,56 @@ router.post('/app/upload', function(req, res){
 	}
 });
 
+/** Upload app file to s3 by pulling the information from Firebase
+ * @endpoint /app/new
+ * @params {object} uploadObject Name of list to retreive
+ * @params {string} uploadObject.appName Name of app to
+ */
+function uploadFromRamList(argBucketName, argFileKey, argUid){
+	console.log('uploadFromRamList called');
+	var deferred = Q.defer()
+	// File reference in userRam list
+	var fileRef = pyrofb.child('userRam').child(argUid).child(argBucketName).child(argFileKey);
+	// Load File
+	fileRef.once('value', function(fileSnap){
+		if(fileSnap.val()) {
+			//file exists in file ref
+			var fileString = fileSnap.val();
+			saveToFileOnS3(argBucketName, argFileKey, fileString).then(function(returnedData){
+				console.log('File saved to s3. Returning:', returnedData);
+				deferred.resolve(returnedData);
+			}, function(){
+				console.error('Error saving file to S3');
+				deferred.reject({status:500, message:'File to upload not found'});
+			});
+		} else {
+			console.warn('file does not exist in ram');
+			deferred.reject({status:500, message:'File to upload not found'});
+		}
+	});
+	return deferred.promise;
+}
+
+function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
+	console.log('[saveToFileOnS3] saveFile called', arguments);
+	var filePath = argFileKey.replace('%20', '.');
+  var deferred = Q.defer();
+  var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents};
+  console.log('[saveToFileOnS3] saveParams:', saveParams);
+  var s3bucket = new awsSdk.S3();
+  s3bucket.putObject(saveParams, function(err, data){
+    if(!err){
+      console.log('[saveToFileOnS3] file saved successfully. Returning:', data);
+      deferred.resolve(data);
+    } else {
+      console.log('[saveToFileOnS3] error saving file:', err);
+      deferred.reject(err);
+    }
+  });
+  return deferred.promise;
+}
 /** New Fb Account
- * @external Endpoint api/fb/account/get
+ * @endpoint api/fb/account/get
  * @params {string} email Email of account to get
  * @params {string} password Password of account to get
  */
