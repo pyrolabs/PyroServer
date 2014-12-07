@@ -2,6 +2,7 @@ var express = require('express');
 var router = express.Router();
 var FirebaseAccount = require('firebase-admin');
 var Firebase = require('firebase');
+var FirebaseTokenGenerator = require('firebase-token-generator');
 var s3 = require('s3');
 var awsSdk = require('s3/node_modules/aws-sdk');
 var pyrofb = new Firebase("https://pyro.firebaseio.com");
@@ -16,11 +17,37 @@ var util = require('util');
 var path = require('path');
 var mime = require('mime');
 var client = configureS3AndGetClient();
-var fbInfo = {
-	email: process.env.PYRO_INFO_EMAIL, 
-	password: process.env.PYRO_INFO_PASS
-};
-
+pyrofb.onAuth(function(authData) {
+  if (authData) {
+    console.log("Authenticated with uid:", authData.uid);
+  } else {
+    console.log("Not authenticaed with pyrofb.");
+    serverLoginToPyro();
+  }
+});
+var pyroAuth = function(){
+	return pyrofb.getAuth();
+}
+function serverLoginToPyro(){
+	console.log('Server login to pyro called');
+	var deferred = Q.defer();
+	if(process.env.hasOwnProperty('PYRO_SERVER_FB_SECRET')){
+		generateAdminToken(process.env.PYRO_SERVER_FB_SECRET).then(function(adminToken){
+			pyrofb.authWithCustomToken(adminToken, function(error, authData){
+				if(!error){
+					var savedAuthData = authData;
+					deferred.resolve(authData);
+				} else {
+					console.error('Error loggin into Pyro Firebase');
+					deferred.reject(error);
+				}
+			});
+		});
+	} else {
+		throw Error('Enter firebase secret');
+	}
+	return deferred.promise;
+}
 /** Set S3 credentials from environment variables if they are availble and return the s3 client object
  * @function configureS3AndGetClient
  */
@@ -71,12 +98,13 @@ router.post('/generate', function(req, res){
 					console.log('request has name param:', newAppName);
 					// Log into Server Firebase account
 					// generateFirebase
-					generatePyroApp.then(function(genRes){
-						console.log('[/generate App generated successfully]:', newApp);
-						respond(genRes, res);
+					generatePyroApp.then(function(pyroAppData){
+						console.log('[/generate App generated successfully]:', pyroAppData);
+						pyroAppData.status = 200;
+						respond(pyroAppData, res);
 					}, function(err){
 						respond(err, res);
-					})
+					});
 				}
 				else {
 					respond({status:500, message:'App By that name already exists on pyro.'}, res);
@@ -120,6 +148,23 @@ router.post('/fb/account/get', function(req, res){
 		}, function(err){
 			respond(err, res);
 		}); 
+	} else {
+		respond({status:500, message:'Incorrectly formatted request'}, res);
+	}
+});
+/** Get Fb Instance
+ * @endpoint api/fb/instance/get
+ * @params {string} uid Uid of account to get
+ * @params {string} instanceName Name of instance you would like to get
+ */
+router.post('/fb/instance/get', function(req, res){
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')) {
+		getFirebaseInstance(req.body.uid, req.body.name).then(function(returnedInstance){
+			respond({status:200, instance: returnedInstance}, res);
+		}, function(err){
+			console.error('error getting firebase instance:', err);
+			respond(err, res);
+		});
 	} else {
 		respond({status:500, message:'Incorrectly formatted request'}, res);
 	}
@@ -219,7 +264,7 @@ function generatePyroApp(argUid, argName) {
 	  		firebaseObj.appUrl = bucketUrl;
 	  		saveFolderToFirebase(newAppName).then(function(jsonFolder){
 	  			// firebaseObj.structure = jsonFolder;
-	  			deferred.resolve({status:200, appData:firebaseObj});
+	  			deferred.resolve(firebaseObj);
 	  		}, function(error){
 	  				console.error('[generatePyroApp] saving folder structure to Firebase:', err);
 	  				deferred.reject(error);
@@ -306,6 +351,35 @@ function createFirebaseInstance(argUid, argName) {
 	});
 	return deferred.promise;
 }
+/** Create a new Firebase App
+ * @function getFirebaseInstance
+ * @params {string} Uid Uid of user to get firebase instance with (Auth info is looked up)
+ * @params {string} Name Name of instance to get
+ */
+function getFirebaseInstance(argUid, argName) {
+	console.log('createFirebaseInstance called:');
+	var deferred = Q.defer();
+	if(argUid && argName){
+		console.log('Instance info:', argUid, argName);
+		getFirebaseAccountFromUid(argUid).then(function(account){
+			account.getDatabase(argName).then(function(instance) {
+		    // var appfb = new Firebase(instance.toString());
+		    console.log('instance created:', instance.toString());
+		    // Enable email & password auth
+		    deferred.resolve(instance.toString());
+		  }).catch(function(err) {
+		    console.error('Error getting firebase instance:', err);
+		    deferred.reject({status:500, message:JSON.stringify(err)});
+		  });
+		}, function(err1){
+		    deferred.reject({status:500, message:JSON.stringify(err1)});
+		});
+	} else {
+		deferred.reject({status:500, message:'Incorrect request format'});
+	}
+
+	return deferred.promise;
+}
 /** Enable email authentication on Firebase given firebase account and name of instance to enable email auth on
  * @function enableEmailAuth
  * @params {string} account Email of account you would like to get
@@ -342,6 +416,13 @@ function getFirebaseAccountFromUid(argUid){
 			console.log('[getFirebaseAccountFromUid] FbData does not exist for this user');
 			deferred.reject({status:401, message:'Incorrect user credentials'});
 		}
+	}, function(err){
+			console.error('[getFirebaseAccountFromUid] Could not lookup fbData:', err);
+			if(err.code == 'PERMISSION_DENIED'){
+				deferred.reject({status:401, message:'Incorrect user credentials from uid'});
+			} else {
+				deferred.reject({status:500, message:'Server Error'});
+			}
 	});
 	return deferred.promise;
 }
@@ -557,6 +638,21 @@ function dirTree(filename) {
   return info;
 }
 
+// Admin Token from Firebase's exposed library
+function generateAdminToken(argSecret){
+ var deferred = Q.defer();
+	if(argSecret) {
+		console.log('Generate Admin Token called:', argSecret);
+		var tokenGenerator = new FirebaseTokenGenerator(argSecret);
+		var authToken = tokenGenerator.createToken({uid: "pyroServer"}, 
+		{admin:true, debug:true});
+   deferred.resolve(authToken);
+	}
+	else {
+		deferred.reject({status:500, message:'Incorrect request format'});
+	}
+return deferred.promise;
+}
 module.exports = router;
 /* CREATE ---- DEPRECATED
 params:
@@ -618,21 +714,7 @@ params:
 // 		return true;
 // 	}
 // }
-// Admin Token from Firebase's exposed library
-// function generateAdminToken(argSecret){
-//  var deferred = Q.defer();
-// 	if(argSecret) {
-// 		console.log('Generate Admin Token called:', argSecret);
-// 		var tokenGenerator = new FirebaseTokenGenerator(req.body.secret);
-// 		var authToken = tokenGenerator.createToken({uid: "pyroAdmin"}, 
-// 		{admin:true, debug:true});
-//    deferred.resolve(authToken);
-// 	}
-// 	else {
-// 		deferred.reject({status:500, message:'Incorrect request format'});
-// 	}
-// return deferred.promise;
-// }
+
 // Bucket copy
 // var knoxCopy = require('knox-copy');
 // 		knoxClient = knoxCopy.createClient({key:process.env.PYRO_SERVER_S3_KEY, secret:process.env.PYRO_SERVER_S3_SECRET, bucket:dbName})
