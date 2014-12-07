@@ -14,6 +14,7 @@ var cookies = require('request-cookies');
 var Q = require('q');
 var util = require('util');
 var path = require('path');
+var mime = require('mime');
 
 var client = s3.createClient({
 	s3Options:{
@@ -23,55 +24,26 @@ var client = s3.createClient({
 });
 var fbInfo = {email: process.env.PYRO_INFO_EMAIL, password: process.env.PYRO_INFO_PASS};
 awsSdk.config.update({accessKeyId:process.env.PYRO_SERVER_S3_KEY, secretAccesssKey:process.env.PYRO_SERVER_S3_SECRET})
-/* CREATE ACCOUNT
-Request Details
-	Request Type: GET
-		URL: https://admin.firebase.com/joinbeta?email=shelby%40pyrolabs.io&password=thisispassword
-	Success Response
-		{
-		"success": true
-		}
-*/
-router.post('/createAccount', function(req, res){
-	console.log('createAccount request received');
-	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')){
-		var email = req.body.email;
-		var pass = req.body.password;
-		createFirebaseAccount(email, pass);
-	} else {
-		respond({status:500, message:'Incorrect request format'}, res);
-	}
-});
 
-/* GENERATE
-params:
-	author
-	name
-*/
-
-
-// argLocalDir = "fs/seed"
-
-
-/* List
-List objects from s3 given name
-params:
-	name
-*/
+/** List objects from s3 given name
+ * @params {string} Name Name of list to retreive
+ * @description
+ */
 //[TODO] THIS NEEDS TO BE SECURED
 router.post('/list', function(req, res) {
-	if(req.body.hasOwnProperty('name')){
-		console.log('name exists');
-		getListOfObjects(req.body.name, res, function(returnedList){
-			console.log('getListOfObjects returned:', returnedList);
-			respond({list:returnedList, status:200}, res);
-		});
-	} else {
-		respond({status:500, message:'Url Parameter does not exist'}, res);
-	}
+	getListOfObjects(req.body.name).then(function(returnedList){
+		console.log('getListOfObjects returned:', returnedList);
+		respond({list:returnedList, status:200}, res);
+	}, function(error){
+		console.log('[/list] Response:');
+		respond(resObj, res);
+	});
 });
 
-
+/** Create a new database on Firebase, create a new Bucket on S3, copy the seed to the bucket, set the bucket permissions
+ * @params {string} Name Name of list to retreive
+ * @description
+ */
 router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
@@ -85,9 +57,9 @@ router.post('/generate', function(req, res){
 					console.log('request has name param:', newAppName);
 					// Log into Server Firebase account
 					// generateFirebase
-					createFirebaseInstance(req.body.uid, newAppName, res, function(){
-						createS3Bucket(newAppName, res, function() {
-					  	uploadToBucket(newAppName, "fs/seed", res, function(bucketUrl){
+					createFirebaseInstance(req.body.uid, newAppName).then(function(){
+						createS3Bucket(newAppName).then(function() {
+					  	uploadToBucket(newAppName, "fs/seed").then(function(bucketUrl){
 					  		saveFolderToFirebase(newAppName).then(function(jsonFolder){
 					  			respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
 					  		}, function(error){
@@ -120,13 +92,11 @@ router.post('/delete', function(req, res) {
 		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
 		  var account = new FirebaseAccount(token);
 		  var dbName = 'pyro-'+ req.body.name;
-		  account.deleteDatabase(dbName)
-		  .then(function(instance) {
+		  account.deleteDatabase(dbName).then(function(instance) {
 		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
 		    console.log('instance created:', instance.toString());
 		    // Save new instance to pyro firebase
 		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName, author:author};
-		    
 		  }).catch(function(err) {
 		    console.error('Oops, error creating instance:', err);
 		    respond({status:500, message:'Error Creating instance', error: err.toString()}, res);
@@ -161,10 +131,9 @@ router.post('/fb/account/new', function(req, res){
 // [TODO] Make this a get request?
 router.post('/fb/account/get', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
-		getFirebaseAccount(req.body.email, req.body.password, res, function(account){
+		getFirebaseAccount(req.body.email, req.body.password).then(function(account){
 				console.log('Account for:' + req.body.email + ' has been updated to:' + account.adminToken);
 				respond({status:200, account: account, message:' Account loaded successfully'}, res);
-
 		}); 
 	} else {
 		respond({status:500, message:'Incorrectly formatted request'}, res);
@@ -191,7 +160,11 @@ router.post('/test', function(req, res){
 		respond(error,res);
 	});
 });
-
+/** Converts a folder structure to JSON including file types given App name
+ * @function saveFolderToFirebase
+ * @params {string} AppName Name of App that you would like to get
+ * @description Adds extension to access folder on local system. In our case that is "fs/pyro-"
+ */
 function saveFolderToFirebase(argAppName){
 	var deferredSave = Q.defer();
 	var appFolder = "fs/pyro-"+ argAppName;
@@ -208,47 +181,9 @@ function saveFolderToFirebase(argAppName){
 	});
 	return deferredSave.promise;
 }
-var mime = require('mime');
-	function dirTree(filename) {
-	  var stats = fs.lstatSync(filename),
-	      info = {
-	          path: filename,
-	          name: path.basename(filename)
-	      };
-	  if (stats.isDirectory()) {
-	    info.type = "folder";
-	    info.children = fs.readdirSync(filename).map(function(child) {
-	        return dirTree(path.join(filename, child));
-	    });
-	  } else {
-	    // Assuming it's a file. In real life it could be a symlink or
-	    // something else!
 
-	    info.type = "file";
-	    info.filetype = mime.lookup(info.path).split("/")[1];
-	    // convert file to string and remove line breaks
-	  	// info.contents = fs.readFileSync(info.path, 'utf8').replace(/(\r\n|\n|\r)/gm,"");
-	  }
-	  return info;
-	}
 
-	function enableEmailAuth(argAccount, argDbName, argRes, cb) {
-		console.log('enableEmailAuth called');
-		argAccount.getDatabase(argDbName).then(function(instance){
-			console.log('instance:', instance.toString());
-			instance.setAuthConfig({password:{"enabled":true}}).then(function(){
-				console.log('Email&Password Authentication enabled succesfully for:', instance.toString());
-				if(cb){
-					cb();
-				} else {
-					respond({status:200, message:'Email&Password Authentication enabled succesfully for ' + argDbName}, argRes);
-				}
-			});
-		}, function(error){
-			console.error('error seeing auth config', error);
-			respond({status:500, message:'Error enabling auth settings'}, argRes);
-		});
-	}
+
 
 // -------------------Helper Functions------------------
 // Basic Respond
@@ -277,23 +212,24 @@ function respond(argResInfo, res){
 // 		return true;
 // 	}
 // }
-function generateFirebase(argUid, argFBName, argRes, cb) {
-	var firebaseObj = {};
+function generateFirebase(argUid, argName) {
+	console.log('generateFirebase:', argUid);
 	// create new firebase with "pyro-"" ammended to front of the app name
-  firebaseObj.dbName = 'pyro-'+ argFBName;
+	var deferred = Q.defer();
+	var firebaseObj = {};
+  firebaseObj.dbName = 'pyro-'+ argName;
   console.log('creating instance with name:', firebaseObj.dbName);
-	createFirebaseInstance(argUid, firebaseObj.dbName, argRes, function(instance){
+	createFirebaseInstance(argUid, firebaseObj.dbName).then(function(instance){
 		console.log('instance created:', instance);
-		//enable email
+		//[TODO] enable email auth
 		firebaseObj.dbUrl = instance.toString();
-		if(cb){
-			console.log('calling back firebaseObj:', firebaseObj);
-			cb(firebaseObj);
-		} else {
-			respond({status:200, url:instance.toString(), message: 'New Account Created with firebase instance'}, argRes);
-		}
+		console.log('calling back firebaseObj:', firebaseObj);
+		deferred.resolve(firebaseObj);
+	}, function(error){
+		console.error('Error generating Firebase:', error);
+		deferred.reject(error);
 	});
-		//generateFirebase
+	return deferred.promise;
 }
 function createFirebaseAccount(argEmail, argPass) {
 	var deferred = Q.defer();
@@ -319,10 +255,10 @@ function createFirebaseAccount(argEmail, argPass) {
 				deferred.resolve(bodyData);
 			} else {
 				console.warn('[createFirebaseAccount] Error creating Firebase account:', bodyData.error);
-				var errObj = {code:401, status:bodyData.error, message:'Error creating Firebase account:' + bodyData.error};
+				var errObj = {status:401, error:bodyData.error, message:'Error creating Firebase account:' + bodyData.error};
 				if(error){
 					console.error('[createFirebaseAccount] Error exists:', error);
-					errObj.error = error;
+					errObj.error2 = error;
 				}
 				console.error('[createFirebaseAccount] error with create account request:', errObj);
 				deferred.reject(errObj);
@@ -335,92 +271,102 @@ function createFirebaseAccount(argEmail, argPass) {
 	return deferred.promise;
 }
 
-function createFirebaseInstance(argUid, argFBName, argRes, callback) {
-	console.log('createFirebaseInstance called:', argUid, argFBName);
+function createFirebaseInstance(argUid, argName) {
+	console.log('createFirebaseInstance called:', argUid, argName);
+	var deferred = Q.defer();
 	getFirebaseAccountFromUid(argUid).then(function(account){
-			account.createDatabase(argFBName).then(function(instance) {
+		account.createDatabase(argName).then(function(instance) {
 	    // var appfb = new Firebase(instance.toString());
 	    console.log('instance created:', instance.toString());
 	    // Enable email & password auth
-	    callback(instance.toString());
+	    deferred.resolve(instance.toString());
 	  }).catch(function(err) {
 	    console.error('Error creating firebase instance:', err);
-	    respond({status:500, message:JSON.stringify(err)}, argRes);
+	    deferred.reject({status:500, message:JSON.stringify(err)});
 	  });
 	}, function(err1){
-		respond({status:500, message:JSON.stringify(err1)}, argRes);
+	    deferred.reject({status:500, message:JSON.stringify(err1)});
 	});
-
+	return deferred.promise;
 } //-- createDatabase
 
-function getFirebaseAccountFromUid(argUid){
+function enableEmailAuth(argAccount, argDbName) {
+	console.log('enableEmailAuth called');
 	var deferred = Q.defer();
-		pyrofb.child('fbData').child(argUid).once('value', function(fbDataSnap){
-			console.log(fbDataSnap.val());
-			if(fbDataSnap.val() != null) {
-				var account = new FirebaseAccount(fbDataSnap.val().token);
-				deferred.resolve(account);
-			} else {
-				console.log('FbData does not exist for this user');
-				deferred.reject({message:'FbData does not exist for this user'});
-			}
+	argAccount.getDatabase(argDbName).then(function(instance){
+		console.log('instance:', instance.toString());
+		instance.setAuthConfig({password:{"enabled":true}}).then(function(){
+			console.log('Email&Password Authentication enabled succesfully for:', instance.toString());
+			deferred.resolve({status:200, message:'Email&Password Authentication enabled succesfully for ' + argDbName});
 		});
-		return deferred.promise;
+	}, function(error){
+		console.error('error seeing auth config', error);
+		deferred.reject({status:500, message:'Error enabling auth settings'});
+	});
+	return deferred.promise;
 }
-function getFirebaseAccount(argEmail, argPass, argRes, cb){
+function getFirebaseAccountFromUid(argUid){
+	console.log('getFirebaseAccountFromUid:', argUid);
+	var deferred = Q.defer();
+	pyrofb.child('fbData').child(argUid).once('value', function(fbDataSnap){
+		console.log(fbDataSnap.val());
+		if(fbDataSnap.val() != null) {
+			var account = new FirebaseAccount(fbDataSnap.val().token);
+			deferred.resolve(account);
+		} else {
+			console.log('FbData does not exist for this user');
+			deferred.reject({message:'FbData does not exist for this user'});
+		}
+	});
+	return deferred.promise;
+}
+/** Get Firebase Account given email and password
+ * @function getFirebaseAccount
+ * @params {string} email Email of account you would like to get
+ * @params {string} password Password of Firebase you would like to get
+ */
+function getFirebaseAccount(argEmail, argPass){
 	console.log('getFirebaseAccount', argEmail, argPass);
+	var deferred = Q.defer();
 	FirebaseAccount.getToken(argEmail, argPass).then(function(token) {
 	  var account = new FirebaseAccount(token);
 	  console.log('getFirebaseAccount successful:', account);
-	  if(cb){
-	  	cb(account);
-	  } else {
-	  	respond({status:200, account: account}, argRes);
-	  }
+	  deferred.resolve(account);
 	}, function(error){
-		console.error('Error getting firebase token:', error.toString());
-		respond({status:401, message:'Error getting firebase account', error: error.toString()}, argRes);
+		console.error('Error getting firebase token:', error);
+		var errObj = {status:401, message:'Error getting firebase account', error: error.toString()};
+		console.warn('error response:', errObj);
+		deferred.reject(errObj);
 	}); //-- getToken
+	return deferred.promise;
 }
-
-
-
-// function generateAdminToken(argSecret, argRes, cb){
-// 	if(argSecret) {
-// 		console.log('Generate Admin Token called:', argSecret);
-// 		var tokenGenerator = new FirebaseTokenGenerator(req.body.secret);
-// 		var authToken = tokenGenerator.createToken({uid: "pyroAdmin"}, 
-// 		{admin:true, debug:true});
-// 		if(cb){
-// 			cb(authToken);
-// 		} else {
-// 			respond({status:200, token:authToken}, argRes);
-// 		}
-// 	}
-// 	else {
-// 		respond({status:500, message:'Incorrect request format'}, argRes);
-// 	}
-// }
-function getAppFb(argAppName, argRes, cb){
+/** Get App Firebase from App Name
+ * @function uploadToBucket
+ * @params {string} appName Name of app to get Firebase of
+ */
+function getAppFb(argAppName){
 	console.log('getAppFb called for:', argAppName);
+	var deferred = Q.defer();
+
 	pyrofb.child('instances').child(argAppName).once('value', function(instanceSnap){
 		if(instanceSnap.val() && instanceSnap.val().hasOwnProperty('dbUrl')){
 			var appFbUrl = instanceSnap.val().dbUrl
 			var fb = new Firebase(appFbUrl);
-			if(cb){
-				cb(fb);
-			} else {
-				respond({status:500, error:'Internal server error'}, argRes);
-			}
+			deferred.resolve(fb);
 		} else {
-			respond({status:500, message: 'App by that name does not exist'}, argRes);
+			deferred.reject({status:500, message: 'App by that name does not exist'});
 		}
 	});
+	return deferred.promise;
 }
-
-function uploadToBucket(argBucketName, argLocalDir, argRes, cb){
+/** Upload to a bucket
+ * @function uploadToBucket
+ * @params {string} bucketName Name of bucket to upload to
+ */ 
+function uploadToBucket(argBucketName, argLocalDir){
 	console.log('uploadToBucket called:', argBucketName);
 	var newAppDir = 'fs/'+ argBucketName;
+	var deferred = Q.defer();
 	fs.copy(argLocalDir, newAppDir , function(err){
 		replace({regex:"ZZ", replacement:"https://"+argBucketName+".firebaseio.com", paths:[newAppDir+"/app.js"]});
 		var upParams = {
@@ -434,54 +380,65 @@ function uploadToBucket(argBucketName, argLocalDir, argRes, cb){
 		var uploader = client.uploadDir(upParams);
 		uploader.on('error', function(err) {
 	  	console.error("unable to sync:", err.stack);
-	  	respond(err, argRes);
+			deferred.reject({status:500, error:err});
 		});
 		// uploader.on('progress', function() {
 		//   console.log("progress", uploader.progressAmount, uploader.progressTotal);
 		// });
 		uploader.on('end', function() {
-		  console.log("done uploading");
+		  console.log("Upload succesful");
 			// [TODO] Delete new app folders
 		  var bucketUrl = argBucketName + '.s3-website-us-east-1.amazonaws.com';
-		  if(cb){
-		  	cb(bucketUrl);
-		  } else {
-				var responseInfo = {status:200, url:bucketUrl, message:'Seed app upload successful to bucket named:' + argBucketName};
-				respond(responseInfo, argRes);
-		  }
+		  var resObj = {status:200, url:bucketUrl, message:'Seed app upload successful to bucket named:' + argBucketName};
+		  console.log('uploadToBucket responding:', resObj);
+		  deferred.resolve(resObj);
 		});	
 	})
-	
+	return deferred.promise;
 }
-function createS3Bucket(argBucketName, argRes, cb) {
+/** Create a new bucket
+ * @function createS3Bucket
+ * @params {string} bucketName Name of bucket to create
+ */
+function createS3Bucket(argBucketName) {
 	console.log('createS3Bucket called');
-	var s3bucket = new awsSdk.S3();
-	s3bucket.createBucket({Bucket: argBucketName},function(err1, data1) {
-		if(err1){
-			console.error('error creating bucket:', err1);
-			respond(err1, argRes);
-		} else {
-			console.log('bucketCreated successfully:', data1);
-			// Setup Bucket website
-			s3bucket.putBucketWebsite({
-				Bucket: argBucketName, 
-				WebsiteConfiguration:{
-					IndexDocument:{
-						Suffix:'index.html'
+	var deferred = Q.defer();
+	if(argBucketName) {
+		var s3bucket = new awsSdk.S3();
+		s3bucket.createBucket({Bucket: argBucketName},function(err1, data1) {
+			if(err1){
+				console.error('error creating bucket:', err1);
+				deferred.reject({status:500, error:err1});
+			} else {
+				console.log('bucketCreated successfully:', data1);
+				// Setup Bucket website
+				s3bucket.putBucketWebsite({
+					Bucket: argBucketName, 
+					WebsiteConfiguration:{
+						IndexDocument:{
+							Suffix:'index.html'
+						}
 					}
-				}
-			}, function(err, data){
-				if(err){
-					console.error('Error creating bucket website setup');
-					respond(err, argRes);
-				} else {
-					console.log('website config set for ' + argBucketName, data1.location);
-					cb(data1.location);
-				}
-			});
-		}
-	}); //--createBucket
+				}, function(err, data){
+					if(err){
+						console.error('Error creating bucket website setup');
+						deferred.reject({status:500, error:err});
+					} else {
+						console.log('website config set for ' + argBucketName, data1.location);
+						deferred.resolve(data1.location);
+					}
+				});
+			}
+		});
+	} else {
+		deferred.reject({status:500, message:'Invalid Bucket Name'});
+	}
+	return deferred.promise;
 }
+/** Get list of object in a given bucket name
+ * @function seperateS3Url
+ * @params {string} url Url to seperate name from
+ */
 function seperateS3Url(argUrl){
 	console.log('seperateS3Url called with', argUrl);
 	var re = /(.+)(?=\.s3)/g;
@@ -496,23 +453,68 @@ function seperateS3Url(argUrl){
 	return bucketString;
 }
 
-
-function getListOfObjects(argBucketName, argRes, cb) {
-	console.log('getListOfObjects:', arguments);
-	var bucket = new awsSdk.S3({params: {Bucket: argBucketName}});
-	bucket.listObjects(function (err, data) {
-	  if (err) {
-	    console.error('Could not load objects from S3 - ',err);
-	    respond({status:500, error:err, message:'Could not load objects from S3'}, argRes);
-	  } else {
-	    console.log('Loaded ' + data.Contents.length + ' items from S3:', data.Contents);
-	    pyrofb.child('instances').child(argBucketName).update({fileStructure:data.Contents}, function(){
-	    	cb(data.Contents);
-	    });
-	  }
-	});
+/** Get list of object in a given bucket name
+ * @function getListOfObjects
+ * @params {string} bucketName Name of bucket to get list of objects from
+ */
+function getListOfObjects(argBucketName) {
+	console.log('getListOfObjects:', argBucketName);
+	var deferred = Q.defer();
+	if(argBucketName){
+		var bucket = new awsSdk.S3({params: {Bucket: argBucketName}});
+		bucket.listObjects(function (err, data) {
+		  if (!err) {
+		  	console.log('[getListOfObject] Loaded ' + data.Contents.length + ' items from S3:', data.Contents);
+		    pyrofb.child('instances').child(argBucketName).update({fileStructure:data.Contents}, function(fbErr){
+		    	if(!fbErr) {
+		    		deferred.resolve(data.Contents);
+		    	} else {
+		    		console.error('[getListOfObject] Error writing list to firebase:', fbErr);
+		    		deferred.reject({status:500, error:fbErr, message:'Server Error: Retreived list not saved.'});
+		    	}
+		    });
+		  } else {
+		    console.error('[getListOfObject] Could not load objects from S3 - ', err);
+		    deferred.reject({status:500, error:err, message:'Could not load objects from S3'});
+		  }
+		});
+	} else {
+		deferred.reject({status:500, message:'Invalid Bucket name'});
+	}
+	return deferred.promise;
 }
+
+/** Create a directory tree in JSON format given a path
+ * @function dirTree
+ * @params {string} Path Folder or File path that contains structure to JSONify
+ */
+function dirTree(filename) {
+  var stats = fs.lstatSync(filename)
+  var info = {
+    path: filename,
+    name: path.basename(filename)
+  };
+  if (stats.isDirectory()) {
+    info.type = "folder";
+    info.children = fs.readdirSync(filename).map(function(child) {
+        return dirTree(path.join(filename, child));
+    });
+  } else {
+    // Assuming it's a file. In real life it could be a symlink or
+    // something else!
+
+    info.type = "file";
+    info.filetype = mime.lookup(info.path).split("/")[1];
+    // convert file to string and remove line breaks
+  	// info.contents = fs.readFileSync(info.path, 'utf8').replace(/(\r\n|\n|\r)/gm,"");
+  }
+  return info;
+}
+
 module.exports = router;
+
+
+
 /* CREATE ---- DEPRECATED
 params:
 	author
@@ -561,6 +563,23 @@ params:
 // });
 
 // -------------  Useful Code ----------------
+// Admin Token from Firebase's exposed library
+// function generateAdminToken(argSecret, argRes, cb){
+// 	if(argSecret) {
+// 		console.log('Generate Admin Token called:', argSecret);
+// 		var tokenGenerator = new FirebaseTokenGenerator(req.body.secret);
+// 		var authToken = tokenGenerator.createToken({uid: "pyroAdmin"}, 
+// 		{admin:true, debug:true});
+// 		if(cb){
+// 			cb(authToken);
+// 		} else {
+// 			respond({status:200, token:authToken}, argRes);
+// 		}
+// 	}
+// 	else {
+// 		respond({status:500, message:'Incorrect request format'}, argRes);
+// 	}
+// }
 // Bucket copy
 // var knoxCopy = require('knox-copy');
 // 		knoxClient = knoxCopy.createClient({key:process.env.PYRO_SERVER_S3_KEY, secret:process.env.PYRO_SERVER_S3_SECRET, bucket:dbName})
