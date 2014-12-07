@@ -482,7 +482,7 @@ function getFirebaseAccountFromUid(argUid){
 	}, function(err){
 			console.error('[getFirebaseAccountFromUid] Could not lookup fbData:', err);
 			if(err.code == 'PERMISSION_DENIED'){
-				deferred.reject({status:401, message:'Incorrect user credentials from uid'});
+				deferred.reject({status:401, message:'Incorrect user credentials from uid', error:err.code});
 			} else {
 				deferred.reject({status:500, message:'Server Error'});
 			}

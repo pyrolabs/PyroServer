@@ -26,7 +26,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 // API HEADERS
-var whitelist = ['https://pyro.firebaseapp.com', 'localhost:9000'];
+var whitelist = ['https://pyro.firebaseapp.com', 'http://localhost:9000'];
 var corsOptions = {origin: function(origin, callback){
     var originIsWhitelisted = whitelist.indexOf(origin) !== -1;
     callback(null, originIsWhitelisted);
