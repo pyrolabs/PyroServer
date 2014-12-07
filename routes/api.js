@@ -199,13 +199,19 @@ function uploadFromRamList(argBucketName, argFileKey, argUid){
 	console.log('uploadFromRamList called');
 	var deferred = Q.defer()
 	// File reference in userRam list
-	var fileRef = pyrofb.child('userRam').child(argUid).child(argBucketName).child(argFileKey);
+	var fileRef = pyrofb.child('userRam').child(argUid).child(argFileKey);
 	// Load File
 	fileRef.once('value', function(fileSnap){
 		if(fileSnap) {
 			//file exists in file ref
-			var fileString = fileSnap.val();
-			saveToFileOnS3(argBucketName, argFileKey, fileString).then(function(returnedData){
+			var fileString = fileSnap.val().content;
+
+			console.log("\n\n FILE KEY",argFileKey)
+      var resFileKey = argFileKey.replace('/'+argBucketName+'/', '');
+      var resFileKey = resFileKey.replace('%20', '.');
+
+
+			saveToFileOnS3(argBucketName, resFileKey, fileString).then(function(returnedData){
 				console.log('File saved to s3. Returning:', returnedData);
 				deferred.resolve(returnedData);
 			}, function(){
