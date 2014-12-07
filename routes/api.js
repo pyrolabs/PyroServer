@@ -284,7 +284,7 @@ function newApp(newAppName){
 	var deferred = Q.defer();
 	var appObj = {name: newAppName};
 	var bucketName = "pyro-" + newAppName;
-	createS3Bucket(newAppName).then(function() {
+	createAndConfigS3Bucket(newAppName).then(function() {
   	uploadToBucket(bucketName, "fs/seed", newAppName).then(function(bucketUrl){
   		console.log('returned from upload to bucket:', bucketUrl);
   		appObj.appUrl = bucketUrl;
@@ -322,7 +322,7 @@ function generatePyroApp(argUid, argName) {
 	createFirebaseInstance(argUid, firebaseObj.dbName).then(function(returnedFbUrl){
 	  console.log('[generatePyroApp] create firebase successfully returned:', returnedFbUrl);
 		firebaseObj.fbUrl = returnedFbUrl;
-		createS3Bucket(firebaseObj.dbName).then(function() {
+		createAndConfigS3Bucket(firebaseObj.dbName).then(function() {
 	  	uploadToBucket(firebaseObj.dbName, "fs/seed").then(function(bucketUrl){
 	  		console.log('[generatePyroApp] uploadToBucket returned:', bucketUrl);
 	  		firebaseObj.appUrl = bucketUrl;
@@ -572,65 +572,97 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
  * @function createS3Bucket
  * @params {string} bucketName Name of bucket to create
  */
-function createS3Bucket(argBucketName) {
+	function createS3Bucket(argBucketName){
+		var deferredCreate = Q.defer();
+		var s3bucket = new awsSdk.S3();
+		s3bucket.createBucket({Bucket: argBucketName, ACL:"public-read"},function(err, data) {
+			if(err){
+				console.error('error creating bucket:', err);
+				deferredCreate.reject({status:500, error:err});
+			} else {
+				console.log('bucketCreated successfully:', data);
+				// Setup Bucket website
+				deferredCreate.resolve(data.location);
+			}
+		});
+		return deferredCreate.promise;
+	}
+	function setS3Website(argBucketName){
+		var s3bucket = new awsSdk.S3();
+		var deferredSite = Q.defer();
+		s3bucket.putBucketWebsite({
+			Bucket: argBucketName, 
+			WebsiteConfiguration:{
+				IndexDocument:{
+					Suffix:'index.html'
+				}
+			}
+		}, function(err, data){
+			if(err){
+				console.error('Error creating bucket website setup');
+				deferredSite.reject({status:500, error:err});
+			} else {
+				console.log('website config set for ' + argBucketName, data);
+				deferredSite.resolve();
+			}
+		});
+		return deferredSite.promise;
+	}
+  function setS3Cors(argBucketName){
+		var s3bucket = new awsSdk.S3();
+		var deferredCors = Q.defer();
+		s3bucket.putBucketCors({
+			Bucket:argBucketName, 
+			CORSConfiguration:{
+				CORSRules: [
+		      {
+		        AllowedHeaders: [
+		          '*',
+		        ],
+		        AllowedMethods: [
+		          'HEAD','GET', 'PUT', 'POST'
+		        ],
+		        AllowedOrigins: [
+		          'http://*', 'https://*'
+		        ],
+		        // ExposeHeaders: [
+		        //   'STRING_VALUE',
+		        // ],
+		        MaxAgeSeconds: 3000
+		      },
+		    ]
+			}
+		}, function(err, data){
+			if(err){
+				console.error('Error creating bucket website setup');
+				deferredCors.reject({status:500, error:err});
+			} else {
+				console.log('bucket cors set successfully resolving:');
+				deferredCors.resolve();
+			}
+		});
+		return deferredCors.promise;
+ }
+function createAndConfigS3Bucket(argBucketName) {
 	console.log('createS3Bucket called');
 	var deferred = Q.defer();
 	if(argBucketName) {
-		var s3bucket = new awsSdk.S3();
-		s3bucket.createBucket({Bucket: argBucketName, ACL:"public-read"},function(err1, data1) {
-			if(err1){
-				console.error('error creating bucket:', err1);
-				deferred.reject({status:500, error:err1});
-			} else {
-				console.log('bucketCreated successfully:', data1);
-				// Setup Bucket website
-				s3bucket.putBucketWebsite({
-					Bucket: argBucketName, 
-					WebsiteConfiguration:{
-						IndexDocument:{
-							Suffix:'index.html'
-						}
-					}
-				}, function(err, data){
-					if(err){
-						console.error('Error creating bucket website setup');
-						deferred.reject({status:500, error:err});
-					} else {
-						console.log('website config set for ' + argBucketName, data1.location);
-						s3bucket.putBucketCors({
-							Bucket:argBucketName, 
-							CORSConfiguration:{
-								CORSRules: [
-						      {
-						        AllowedHeaders: [
-						          '*',
-						        ],
-						        AllowedMethods: [
-						          'HEAD','GET', 'PUT', 'POST'
-						        ],
-						        AllowedOrigins: [
-						          'http://*', 'https://*'
-						        ],
-						        // ExposeHeaders: [
-						        //   'STRING_VALUE',
-						        // ],
-						        MaxAgeSeconds: 3000
-						      },
-						    ]
-							}
-						}, function(err2, data2){
-							if(err2){
-								console.error('Error creating bucket website setup');
-								deferred.reject({status:500, error:err2});
-							} else {
-								console.log('bucket cors set successfully:', data2);
-								deferred.resolve(data2.location);
-							}
-						});
-					}
+			createS3Bucket(argBucketName).then(function(location){
+				setS3Website(argBucketName).then(function(){
+					setS3Cors(argBucketName).then(function(){
+						deferred.resolve(argBucketName);
+					}, function(err){
+						console.error('Error setting new bucket cors config', err);
+						deferred.reject(err);
+					});
+				}, function(err){
+					console.error('Setting new bucket site', err);
+					deferred.reject(err);
 				});
-			}
-		});
+			}, function(err){
+				console.error('Error creating new bucket', err);
+				deferred.reject(err);
+			});
 	} else {
 		deferred.reject({status:500, message:'Invalid Bucket Name'});
 	}
