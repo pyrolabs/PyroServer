@@ -90,7 +90,7 @@ router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
 		console.log('[/generate] request is the correct shape');
-		var newAppName = "pyro-" + req.body.uid;
+		var newAppName = "pyro-" + req.body.name;
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
 				console.log('[/generate appSnap:]:', appSnap);
 				if(!appSnap.val()){
@@ -98,7 +98,7 @@ router.post('/generate', function(req, res){
 					console.log('request has name param:', newAppName);
 					// Log into Server Firebase account
 					// generateFirebase
-					generatePyroApp(req.body.name).then(function(pyroAppData){
+					generatePyroApp(req.body.uid, req.body.name).then(function(pyroAppData){
 						console.log('[/generate App generated successfully]:', pyroAppData);
 						pyroAppData.status = 200;
 						respond(pyroAppData, res);
