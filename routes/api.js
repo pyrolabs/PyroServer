@@ -195,17 +195,17 @@ router.post('/app/upload', function(req, res){
  * @params {object} uploadObject Name of list to retreive
  * @params {string} uploadObject.appName Name of app to 
  */
-function uploadFromRamList(argBucketName, argFilePath, argUid){
+function uploadFromRamList(argBucketName, argFileKey, argUid){
 	console.log('uploadFromRamList called');
 	var deferred = Q.defer()
 	// File reference in userRam list
-	var fileRef = pyrofb.child('userRam').child(argUid).child(argBucketName).child(argFilePath);
+	var fileRef = pyrofb.child('userRam').child(argUid).child(argBucketName).child(argFileKey);
 	// Load File
 	fileRef.once('value', function(fileSnap){
 		if(fileSnap) {
 			//file exists in file ref
 			var fileString = fileSnap.val();
-			saveToFileOnS3(argBucketName, argFilePath, argFileContents).then(function(returnedData){
+			saveToFileOnS3(argBucketName, argFileKey, argFileContents).then(function(returnedData){
 				console.log('File saved to s3. Returning:', returnedData);
 				deferred.resolve(returnedData);
 			}, function(){
@@ -909,9 +909,10 @@ function saveFolderToFirebase(argAppName){
  */
 function dirTree(filename) {
   var stats = fs.lstatSync(filename)
+  var name = path.basename(filename).replace("fs/", "")
   var info = {
     path: filename,
-    name: path.basename(filename).replace("fs/", "");
+    name: name,
   };
   if (stats.isDirectory()) {
     info.type = "folder";
