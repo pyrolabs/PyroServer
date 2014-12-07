@@ -90,7 +90,7 @@ router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
 		console.log('[/generate] request is the correct shape');
-		var newAppName = "pyro-" + req.body.name;
+		var newAppName = "pyro-" + req.body.uid;
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
 				console.log('[/generate appSnap:]:', appSnap);
 				if(!appSnap.val()){
@@ -98,7 +98,42 @@ router.post('/generate', function(req, res){
 					console.log('request has name param:', newAppName);
 					// Log into Server Firebase account
 					// generateFirebase
-					generatePyroApp.then(function(pyroAppData){
+					generatePyroApp(req.body.uid).then(function(pyroAppData){
+						console.log('[/generate App generated successfully]:', pyroAppData);
+						pyroAppData.status = 200;
+						respond(pyroAppData, res);
+					}, function(err){
+						respond(err, res);
+					});
+				}
+				else {
+					respond({status:500, message:'App By that name already exists on pyro.'}, res);
+				}
+		}, function(err){
+			console.error('error getting app reference:', err);
+			respond({status:500,  error:err.error, code:err.code}, res);
+		});
+	} else {
+		respond({status:500, message:'Incorrect request format'}, res);
+	}
+});
+/** Create a new Bucket on S3, copy the seed to the bucket, set the bucket permissions
+ * @endpoint /app/new
+ * @params {string} Name Name of list to retreive
+ * @params {string} Uid Uid of user to generate for
+ */
+router.post('/app/new', function(req, res){
+	console.log('generate request received:', req.body);
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
+		console.log('[/generate] request is the correct shape');
+		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
+				console.log('[/generate appSnap:]:', appSnap);
+				if(!appSnap.val()){
+					// [TODO] check that author is the author of the instance
+					console.log('request has name param:', newAppName);
+					// Log into Server Firebase account
+					// generateFirebase
+					newApp(req.body.name).then(function(pyroAppData){
 						console.log('[/generate App generated successfully]:', pyroAppData);
 						pyroAppData.status = 200;
 						respond(pyroAppData, res);
@@ -244,6 +279,34 @@ function respond(argResInfo, res){
 		res.end();
 	}
 }
+function newApp(newAppName){
+	console.log('newApp:', argUid);
+	// create new firebase with "pyro-"" ammended to front of the app name
+	var deferred = Q.defer();
+	var appObj = {name: newAppName};
+	var bucketName = "pyro-" + req.body.name;
+	createS3Bucket(newAppName).then(function() {
+  	uploadToBucket(bucketName, "fs/seed", newAppName).then(function(bucketUrl){
+  		appObj.appUrl = bucketUrl;
+  		saveFolderToFirebase(newAppName).then(function(jsonFolder){
+  			// appObj.structure = jsonFolder;
+  			deferred.resolve(appObj);
+  		}, function(error){
+  				console.error('[newApp] saving folder structure to Firebase:', err);
+  				deferred.reject(error);
+  		});
+  	}, function(err){
+				console.error('[newApp] error uploading seed to S3:', err);
+  			deferred.reject(error);
+  	});
+	}, function(err){
+		console.error('[newApp] creating S3 bucket:', err);
+		deferred.reject(error);
+	});
+	return deferred.promise;
+}
+		
+
 /** Create a new Database, and copy a new app to a new S3 bucket under the same bucket name as the database
  * @function generatePyroApp
  * @params {string} Email Email of new Firebase account to create
@@ -447,7 +510,7 @@ function getFirebaseAccount(argEmail, argPass){
 	return deferred.promise;
 }
 /** Get App Firebase from App Name
- * @function uploadToBucket
+ * @function getAppFb
  * @params {string} appName Name of app to get Firebase of
  */
 function getAppFb(argAppName){
@@ -469,12 +532,16 @@ function getAppFb(argAppName){
  * @function uploadToBucket
  * @params {string} bucketName Name of bucket to upload to
  */ 
-function uploadToBucket(argBucketName, argLocalDir){
+function uploadToBucket(argBucketName, argLocalDir, argAppName){
 	console.log('uploadToBucket called:', argBucketName);
+	var dbUrl = "https://"+argBucketName+".firebaseio.com";
+	if(argAppName) {
+		dbUrl = "https://"+argAppName+".firebaseio.com"
+	}
 	var newAppDir = 'fs/'+ argBucketName;
 	var deferred = Q.defer();
 	fs.copy(argLocalDir, newAppDir , function(err){
-		replace({regex:"ZZ", replacement:"https://"+argBucketName+".firebaseio.com", paths:[newAppDir+"/app.js"]});
+		replace({regex:"ZZ", replacement:dbUrl, paths:[newAppDir+"/app.js"]});
 		var upParams = {
 		  localDir: newAppDir,
 		  s3Params: {
