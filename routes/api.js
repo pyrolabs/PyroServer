@@ -297,7 +297,7 @@ function generateFirebase(argUid, argFBName, argRes, cb) {
 }
 function createFirebaseAccount(argEmail, argPass) {
 	var deferred = Q.defer();
-	console.log('CreateFirebaseAccount called with:', argEmail, argPass);
+	console.log('createFirebaseAccount() called with:', argEmail, argPass);
 	// check for account
 	if(argEmail && argPass){
 		var urlObj = {
@@ -318,16 +318,18 @@ function createFirebaseAccount(argEmail, argPass) {
 				console.log('Firebase account created successfully:', body.error);
 				deferred.resolve(bodyData);
 			} else {
-				var errObj = {status:500, message:'Error creating Firebase account', error:bodyData.error};
+				console.warn('[createFirebaseAccount] Error creating Firebase account:', bodyData.error);
+				var errObj = {code:401, status:bodyData.error, message:'Error creating Firebase account:' + bodyData.error};
 				if(error){
-					errObj.error2 = error;
+					console.error('[createFirebaseAccount] Error exists:', error);
+					errObj.error = error;
 				}
-				console.error('error with create account request:', errObj);
+				console.error('[createFirebaseAccount] error with create account request:', errObj);
 				deferred.reject(errObj);
 			}
 		});
 	} else {
-		console.error('Request does not contain correct credentials');
+		console.error('[createFirebaseAccount] Request does not contain correct credentials');
 		respond({status:500, message:'Invalid new account credentials'}, argRes);
 	}
 	return deferred.promise;
