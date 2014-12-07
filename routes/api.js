@@ -163,7 +163,7 @@ router.post('/app/upload', function(req, res){
 		var appName = req.body.name;
 		var bucketName = "pyro-" + req.body.name;
 		var userUid = req.body.uid;
-		var path = req.body.filePath;
+		var path = req.body.filePath.replace(".", "-");
 
 		console.log('[/app/upload] request is the correct shape');
 		pyrofb.child('instances').child(appName).once('value', function(appSnap){
