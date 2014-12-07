@@ -78,7 +78,6 @@ function configureS3AndGetClient(){
 // 		respond({list:returnedList, status:200}, res);
 // 	}, function(error){
 // 		console.log('[/list] Response:');
-// 		respond(resObj, res);
 // 	});
 // });
 /** Create a new database on Firebase, create a new Bucket on S3, copy the seed to the bucket, set the bucket permissions
@@ -218,7 +217,7 @@ router.post('/fb/config', function(req, res){
 		});
 	}, function(err){
 		console.error('error getting firebase account from uid', err);
-		respond(resObj, res);
+		respond(err, res);
 	});
 });
 /** NOT WORKING  Delete the pyro application given name. This includes the S3 bucket, and should have the option to include the Firebase instance and Account seperatetly in the delete.
@@ -564,7 +563,6 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
 		  console.log("Upload succesful");
 			// [TODO] Delete new app folders
 		  var bucketUrl = argBucketName + '.s3-website-us-east-1.amazonaws.com';
-		  console.log('uploadToBucket responding:', resObj);
 		  deferred.resolve(bucketUrl);
 		});	
 	})
