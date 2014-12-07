@@ -125,6 +125,7 @@ router.post('/app/new', function(req, res){
 	console.log('new request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
 		console.log('[/generate] request is the correct shape');
+		var newAppName = req.body.name;
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
 				console.log('[/generate appSnap:]:', appSnap);
 				if(!appSnap.val()){
@@ -165,7 +166,7 @@ router.post('/app/upload', function(req, res){
 		var path = req.body.filePath;
 
 		console.log('[/app/upload] request is the correct shape');
-		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
+		pyrofb.child('instances').child(appName).once('value', function(appSnap){
 				console.log('[/app/upload appSnap:]:', appSnap);
 				var appData = appSnap.val();
 				if(appData) {
@@ -909,7 +910,7 @@ function saveFolderToFirebase(argAppName){
  */
 function dirTree(filename) {
   var stats = fs.lstatSync(filename)
-  var name = path.basename(filename).replace("fs/", "")
+  var name = path.basename(filename).replace("fs/", "");
   var info = {
     path: filename,
     name: name,
