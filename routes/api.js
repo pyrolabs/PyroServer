@@ -138,11 +138,6 @@ router.post('/fb/config', function(req, res){
 		});
 	}, function(err){
 		console.error('error getting firebase account from uid', err);
-		var resObj = {status:500, message:'error getting firebase account from uid'};
-		if(err){
-			resObj.error = err;
-		}
-		console.log('Resonding with:', resObj);
 		respond(resObj, res);
 	});
 });
@@ -284,7 +279,7 @@ function createFirebaseAccount(argEmail, argPass) {
 		});
 	} else {
 		console.error('[createFirebaseAccount] Request does not contain correct credentials');
-		respond({status:500, message:'Invalid new account credentials'}, argRes);
+		deferred.reject({status:500, message:'Invalid account credentials'});
 	}
 	return deferred.promise;
 }
@@ -339,13 +334,13 @@ function getFirebaseAccountFromUid(argUid){
 	console.log('getFirebaseAccountFromUid:', argUid);
 	var deferred = Q.defer();
 	pyrofb.child('fbData').child(argUid).once('value', function(fbDataSnap){
-		console.log(fbDataSnap.val());
 		if(fbDataSnap.val() != null) {
+			console.log('[getFirebaseAccountFromUid] returned fbData:', fbDataSnap.val());
 			var account = new FirebaseAccount(fbDataSnap.val().token);
 			deferred.resolve(account);
 		} else {
-			console.log('FbData does not exist for this user');
-			deferred.reject({message:'FbData does not exist for this user'});
+			console.log('[getFirebaseAccountFromUid] FbData does not exist for this user');
+			deferred.reject({status:401, message:'Incorrect user credentials'});
 		}
 	});
 	return deferred.promise;
@@ -624,21 +619,19 @@ params:
 // 	}
 // }
 // Admin Token from Firebase's exposed library
-// function generateAdminToken(argSecret, argRes, cb){
+// function generateAdminToken(argSecret){
+//  var deferred = Q.defer();
 // 	if(argSecret) {
 // 		console.log('Generate Admin Token called:', argSecret);
 // 		var tokenGenerator = new FirebaseTokenGenerator(req.body.secret);
 // 		var authToken = tokenGenerator.createToken({uid: "pyroAdmin"}, 
 // 		{admin:true, debug:true});
-// 		if(cb){
-// 			cb(authToken);
-// 		} else {
-// 			respond({status:200, token:authToken}, argRes);
-// 		}
+//    deferred.resolve(authToken);
 // 	}
 // 	else {
-// 		respond({status:500, message:'Incorrect request format'}, argRes);
+// 		deferred.reject({status:500, message:'Incorrect request format'});
 // 	}
+// return deferred.promise;
 // }
 // Bucket copy
 // var knoxCopy = require('knox-copy');
