@@ -163,8 +163,7 @@ router.post('/app/upload', function(req, res){
 		var appName = req.body.name;
 		var bucketName = "pyro-" + req.body.name;
 		var userUid = req.body.uid;
-		var path = req.body.filePath.replace(".", "-");
-
+		var path = req.body.filePath.replace(".", "%20");
 		console.log('[/app/upload] request is the correct shape');
 		pyrofb.child('instances').child(appName).once('value', function(appSnap){
 				console.log('[/app/upload appSnap:]:', appSnap);
@@ -221,10 +220,11 @@ function uploadFromRamList(argBucketName, argFileKey, argUid){
 	return deferred.promise;
 }
 
-function saveToFileOnS3(argBucketName, argFilePath, argFileContents){
+function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
 	console.log('[saveToFileOnS3] saveFile called', arguments);
+	var filePath = argFileKey.replace('%20', '.');
   var deferred = Q.defer();
-  var saveParams = {Bucket:argBucketName, Key:argFilePath,  Body: argFileContents};
+  var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents};
   console.log('[saveToFileOnS3] saveParams:', saveParams)
   s3.putObject(saveParams, function(err, data){
     if(!err){
