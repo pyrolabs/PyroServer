@@ -228,22 +228,13 @@ router.post('/fb/config', function(req, res){
 router.post('/delete', function(req, res) {
 	console.log('Delete request received:', req.body);
 	// [TODO] Make this delete firebase
-		if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
+		if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
 		var newAppName = req.body.name;
-		var author = req.body.author;
-		console.log('request has name param:', newAppName);
-		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
-		  var account = new FirebaseAccount(token);
-		  var dbName = 'pyro-'+ req.body.name;
-		  account.deleteDatabase(dbName).then(function(instance) {
-		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
-		    console.log('instance created:', instance.toString());
-		    // Save new instance to pyro firebase
-		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName, author:author};
-		  }).catch(function(err) {
-		    console.error('Oops, error creating instance:', err);
-		    respond({status:500, message:'Error Creating instance', error: err.toString()}, res);
-		  });
+		var author = req.body.uid;
+		deletePyroApp(req.body.name, req.body.uid).then(function(){
+			respond({status:200, message:'Pyro app deleted successfully'});
+		}, function(err){
+			respond(err, res);
 		})
 	} else {
 		respond({status:500, message:'Incorrect request format'}, res);
@@ -452,6 +443,30 @@ function getFirebaseInstance(argUid, argName) {
 
 	return deferred.promise;
 }
+/** Delete a Firebase Instance
+ * @function deleteFirebaseInstance
+ * @params {string} Uid Uid of user to get firebase instance with (Auth info is looked up)
+ * @params {string} Name Name of instance to delete
+ */
+function deleteFirebaseInstance(argUid, argName){
+	var deferred = Q.defer();
+	if(argUid && argName){
+		getFirebaseAccountFromUid(argUid).then(function(account){
+			account.deleteDatabase(argName).then(function(instance) {
+		    console.log('instance deleted successfully:', instance.toString());
+		    deferred.resolve(instance.toString());
+		  }).catch(function(err) {
+		    console.error('Error creating firebase instance:', err);
+		    deferred.reject({status:500, message:JSON.stringify(err)});
+		  });
+		}, function(err1){
+		    deferred.reject({status:500, message:JSON.stringify(err1)});
+		});
+	} else {
+		deferred.reject({status:500, message:'Incorrect request parameters'});
+	}
+	return deferred.promise;
+}
 /** Enable email authentication on Firebase given firebase account and name of instance to enable email auth on
  * @function enableEmailAuth
  * @params {string} account Email of account you would like to get
@@ -577,6 +592,26 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
 	})
 	return deferred.promise;
 }
+/** Delete a Pyro App. This includes deleting the firebaseInstance (possibly backup first), deleting the AppBucket, and possibly deleting info from firebase
+ * @function deleteS3Bucket
+ * @params {string} bucketName Name of bucket to delete
+ */
+function deletePyroApp(argAppName, argUid){
+	var bucketName = "pyro-"+ argAppName;
+	// [TODO] Delete firebase instance as well
+	var deferred = Q.defer();
+	deleteS3Bucket(bucketName).then(function(){
+		deleteFirebaseInstance(argUid, argAppName).then(function(){
+			console.log('deletePyroApp successful');
+			deferred.resolve();
+		}, function(err){
+			deferred.reject(err);
+		});
+	}, function(err){
+		deferred.reject(err);
+	});
+	return deferred.promise;
+}
 /** Create a new bucket
  * @function createS3Bucket
  * @params {string} bucketName Name of bucket to create
@@ -598,6 +633,10 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
 		});
 		return deferredCreate.promise;
 	}
+/** Delete an S3 bucket
+ * @function deleteS3Bucket
+ * @params {string} bucketName Name of bucket to delete
+ */
 	function deleteS3Bucket(argBucketName){
 		console.log('deleteS3Bucket called', argBucketName)
 		var deferredDelete = Q.defer();
