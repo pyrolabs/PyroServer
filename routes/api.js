@@ -143,11 +143,11 @@ router.post('/delete', function(req, res) {
  */
 router.post('/fb/account/new', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
-		createFirebaseAccount(req.body.email, req.body.password, res, function(account){
+		createFirebaseAccount(req.body.email, req.body.password).then(function(account){
 			var fbAccountData = {token: account.adminToken, email:req.body.email};
-			pyrofb.child('fbData').child(req.body.email).set(fbAccountData, function(){
-				respond({status:200, account: account, message:'fb account created successfully'}, res);
-			});
+			respond({status:200, account: account, message:'fb account created successfully'}, res);
+		}, function(errResponse){
+			respond(errResponse, res);
 		});
 	} else {
 		respond({status:500, message:'Incorrectly formatted request'}, res);
@@ -295,8 +295,10 @@ function generateFirebase(argUid, argFBName, argRes, cb) {
 	});
 		//generateFirebase
 }
-function createFirebaseAccount(argEmail, argPass, argRes, cb) {
+function createFirebaseAccount(argEmail, argPass) {
+	var deferred = Q.defer();
 	console.log('CreateFirebaseAccount called with:', argEmail, argPass);
+	// check for account
 	if(argEmail && argPass){
 		var urlObj = {
 			protocol:'https:', 
@@ -314,26 +316,21 @@ function createFirebaseAccount(argEmail, argPass, argRes, cb) {
 			var bodyData = JSON.parse(body);
 			if(!error && !bodyData.hasOwnProperty('error')) {
 				console.log('Firebase account created successfully:', body.error);
-				if(cb){
-					cb(bodyData);
-				} else {
-					respond({success:true, status:200, message:'Firebase account created successfully', account:bodyData}, argRes);
-				}
-
+				deferred.resolve(bodyData);
 			} else {
 				var errObj = {status:500, message:'Error creating Firebase account', error:bodyData.error};
 				if(error){
 					errObj.error2 = error;
 				}
 				console.error('error with create account request:', errObj);
-				respond(errObj, argRes);
+				deferred.reject(errObj);
 			}
 		});
 	} else {
 		console.error('Request does not contain correct credentials');
 		respond({status:500, message:'Invalid new account credentials'}, argRes);
 	}
-
+	return deferred.promise;
 }
 
 function createFirebaseInstance(argUid, argFBName, argRes, callback) {
