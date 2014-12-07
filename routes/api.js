@@ -20,7 +20,10 @@ var fbInfo = {
 	email: process.env.PYRO_INFO_EMAIL, 
 	password: process.env.PYRO_INFO_PASS
 };
-// Set S3 credentials from environment variables
+
+/** Set S3 credentials from environment variables if they are availble and return the s3 client object
+ * @function configureS3AndGetClient
+ */
 function configureS3AndGetClient(){
 	if(process.env.hasOwnProperty('PYRO_SERVER_S3_KEY')&&process.env.hasOwnProperty('PYRO_SERVER_S3_SECRET')){
 		awsSdk.config.update({
@@ -41,16 +44,16 @@ function configureS3AndGetClient(){
  * @endpoint /list
  * @params {string} Name name of bucket of which to list items
  */
-router.post('/list', function(req, res) {
-//[TODO] THIS NEEDS TO BE SECURED
-	getListOfObjects(req.body.name).then(function(returnedList){
-		console.log('getListOfObjects returned:', returnedList);
-		respond({list:returnedList, status:200}, res);
-	}, function(error){
-		console.log('[/list] Response:');
-		respond(resObj, res);
-	});
-});
+// router.post('/list', function(req, res) {
+// //[TODO] THIS NEEDS TO BE SECURED
+// 	getListOfS3BucketContents(req.body.name).then(function(returnedList){
+// 		console.log('getListOfS3BucketContents returned:', returnedList);
+// 		respond({list:returnedList, status:200}, res);
+// 	}, function(error){
+// 		console.log('[/list] Response:');
+// 		respond(resObj, res);
+// 	});
+// });
 /** Create a new database on Firebase, create a new Bucket on S3, copy the seed to the bucket, set the bucket permissions
  * @endpoint /generate
  * @params {string} Name Name of list to retreive
@@ -59,60 +62,29 @@ router.post('/list', function(req, res) {
 router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
-		console.log('it is the correct shape');
+		console.log('[/generate] request is the correct shape');
 		var newAppName = "pyro-" + req.body.name;
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
-				console.log('appSnap:', appSnap);
+				console.log('[/generate appSnap:]:', appSnap);
 				if(!appSnap.val()){
 					// [TODO] check that author is the author of the instance
 					console.log('request has name param:', newAppName);
 					// Log into Server Firebase account
 					// generateFirebase
-					createFirebaseInstance(req.body.uid, newAppName).then(function(){
-						createS3Bucket(newAppName).then(function() {
-					  	uploadToBucket(newAppName, "fs/seed").then(function(bucketUrl){
-					  		saveFolderToFirebase(newAppName).then(function(jsonFolder){
-					  			respond({status:200, appUrl:bucketUrl, url:bucketUrl}, res);
-					  		}, function(error){
-					  			respond(error,res);
-					  		});
-					  	});
-				  	});
-					});
+					generatePyroApp.then(function(genRes){
+						console.log('[/generate App generated successfully]:', newApp);
+						respond(genRes, res);
+					}, function(err){
+						respond(err, res);
+					})
+				}
+				else {
+					respond({status:500, message:'App By that name already exists on pyro.'}, res);
 				}
 		}, function(err){
 			console.error('error getting app reference:', err);
 			respond({status:500,  error:err.error, code:err.code}, res);
 		});
-	} else {
-		respond({status:500, message:'Incorrect request format'}, res);
-	}
-});
-/** NOT WORKING  Delete the pyro application given name. This includes the S3 bucket, and should have the option to include the Firebase instance and Account seperatetly in the delete.
- * @endpoint api/delete
- * @params {string} email Email of account to get
- * @params {string} password Password of account to get
- */
-router.post('/delete', function(req, res) {
-	console.log('Delete request received:', req.body);
-	// [TODO] Make this delete firebase
-		if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
-		var newAppName = req.body.name;
-		var author = req.body.author;
-		console.log('request has name param:', newAppName);
-		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
-		  var account = new FirebaseAccount(token);
-		  var dbName = 'pyro-'+ req.body.name;
-		  account.deleteDatabase(dbName).then(function(instance) {
-		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
-		    console.log('instance created:', instance.toString());
-		    // Save new instance to pyro firebase
-		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName, author:author};
-		  }).catch(function(err) {
-		    console.error('Oops, error creating instance:', err);
-		    respond({status:500, message:'Error Creating instance', error: err.toString()}, res);
-		  });
-		})
 	} else {
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
@@ -145,6 +117,8 @@ router.post('/fb/account/get', function(req, res){
 		getFirebaseAccount(req.body.email, req.body.password).then(function(account){
 				console.log('Account for:' + req.body.email + ' has been updated to:' + account.adminToken);
 				respond({status:200, account: account, message:' Account loaded successfully'}, res);
+		}, function(err){
+			respond(err, res);
 		}); 
 	} else {
 		respond({status:500, message:'Incorrectly formatted request'}, res);
@@ -172,8 +146,37 @@ router.post('/fb/config', function(req, res){
 		respond(resObj, res);
 	});
 });
+/** NOT WORKING  Delete the pyro application given name. This includes the S3 bucket, and should have the option to include the Firebase instance and Account seperatetly in the delete.
+ * @endpoint api/delete
+ * @params {string} email Email of account to get
+ * @params {string} password Password of account to get
+ */
+router.post('/delete', function(req, res) {
+	console.log('Delete request received:', req.body);
+	// [TODO] Make this delete firebase
+		if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('author')){
+		var newAppName = req.body.name;
+		var author = req.body.author;
+		console.log('request has name param:', newAppName);
+		FirebaseAccount.getToken(fbInfo.email, fbInfo.password).then(function(token) {
+		  var account = new FirebaseAccount(token);
+		  var dbName = 'pyro-'+ req.body.name;
+		  account.deleteDatabase(dbName).then(function(instance) {
+		    var pyrofb = new Firebase("https://pyro.firebaseio.com");
+		    console.log('instance created:', instance.toString());
+		    // Save new instance to pyro firebase
+		    var instanceObj = {name:newAppName, url:instance.toString(), dbName:dbName, author:author};
+		  }).catch(function(err) {
+		    console.error('Oops, error creating instance:', err);
+		    respond({status:500, message:'Error Creating instance', error: err.toString()}, res);
+		  });
+		})
+	} else {
+		respond({status:500, message:'Incorrect request format'}, res);
+	}
+});
 /** TEST ENDPOINT Params are always changing so they are not listed
- * @endpoint api/tes
+ * @endpoint api/test
  */
 router.post('/test', function(req, res){
 	console.log('api test post received:', req.body);
@@ -201,26 +204,41 @@ function respond(argResInfo, res){
 		res.end();
 	}
 }
-/** Create a new Database, and copy a new app to S3 under the same bucket name as the database
- * @function createFirebaseAccount
+/** Create a new Database, and copy a new app to a new S3 bucket under the same bucket name as the database
+ * @function generatePyroApp
  * @params {string} Email Email of new Firebase account to create
  * @params {string} Password Name of new instance
  */
-function generateFirebase(argUid, argName) {
-	console.log('generateFirebase:', argUid);
+function generatePyroApp(argUid, argName) {
+	console.log('generatePyroApp:', argUid);
 	// create new firebase with "pyro-"" ammended to front of the app name
 	var deferred = Q.defer();
 	var firebaseObj = {};
   firebaseObj.dbName = 'pyro-'+ argName;
   console.log('creating instance with name:', firebaseObj.dbName);
-	createFirebaseInstance(argUid, firebaseObj.dbName).then(function(instance){
-		console.log('instance created:', instance);
-		//[TODO] enable email auth
-		firebaseObj.dbUrl = instance.toString();
-		console.log('calling back firebaseObj:', firebaseObj);
-		deferred.resolve(firebaseObj);
-	}, function(error){
-		console.error('Error generating Firebase:', error);
+	createFirebaseInstance(req.body.uid, newAppName).then(function(returnedFbUrl){
+	  console.log('[generatePyroApp] create firebase successfully returned:', returnedFbUrl);
+		firebaseObj.fbUrl = returnedFbUrl;
+		createS3Bucket(newAppName).then(function() {
+	  	uploadToBucket(newAppName, "fs/seed").then(function(bucketUrl){
+	  		firebaseObj.appUrl = bucketUrl;
+	  		saveFolderToFirebase(newAppName).then(function(jsonFolder){
+	  			// firebaseObj.structure = jsonFolder;
+	  			deferred.resolve({status:200, appData:firebaseObj});
+	  		}, function(error){
+	  				console.error('[generatePyroApp] saving folder structure to Firebase:', err);
+	  				deferred.reject(error);
+	  		});
+	  	}, function(err){
+					console.error('[generatePyroApp] error uploading seed to S3:', err);
+	  			deferred.reject(error);
+	  	});
+  	}, function(err){
+  		console.error('[generatePyroApp] creating S3 bucket:', err);
+			deferred.reject(error);
+  	});
+	}, function(err){
+		console.error('[generatePyroApp] error creating firebase instance', err);
 		deferred.reject(error);
 	});
 	return deferred.promise;
@@ -346,7 +364,7 @@ function getFirebaseAccount(argEmail, argPass){
 	  deferred.resolve(account);
 	}, function(error){
 		console.error('Error getting firebase token:', error);
-		var errObj = {status:401, message:'Error getting firebase account', error: error.toString()};
+		var errObj = {status:401, message:'Error getting Firebase account', error: error.toString().replace("Error: ", "")};
 		console.warn('error response:', errObj);
 		deferred.reject(errObj);
 	}); //-- getToken
@@ -466,11 +484,12 @@ function seperateS3Url(argUrl){
 }
 
 /** Get list of object in a given bucket name
- * @function getListOfObjects
+ * @function getListOfS3BucketContents
  * @params {string} bucketName Name of bucket to get list of objects from
  */
-function getListOfObjects(argBucketName) {
-	console.log('getListOfObjects:', argBucketName);
+function getListOfS3BucketContents(argBucketName) {
+	// [TODO] Secure this
+	console.log('getListOfS3BucketContents:', argBucketName);
 	var deferred = Q.defer();
 	if(argBucketName){
 		var bucket = new awsSdk.S3({params: {Bucket: argBucketName}});
