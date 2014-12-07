@@ -98,7 +98,7 @@ router.post('/generate', function(req, res){
 					console.log('request has name param:', newAppName);
 					// Log into Server Firebase account
 					// generateFirebase
-					generatePyroApp(req.body.uid).then(function(pyroAppData){
+					generatePyroApp(req.body.name).then(function(pyroAppData){
 						console.log('[/generate App generated successfully]:', pyroAppData);
 						pyroAppData.status = 200;
 						respond(pyroAppData, res);
@@ -319,13 +319,13 @@ function generatePyroApp(argUid, argName) {
 	var firebaseObj = {};
   firebaseObj.dbName = 'pyro-'+ argName;
   console.log('creating instance with name:', firebaseObj.dbName);
-	createFirebaseInstance(req.body.uid, newAppName).then(function(returnedFbUrl){
+	createFirebaseInstance(argUid, firebaseObj.dbName).then(function(returnedFbUrl){
 	  console.log('[generatePyroApp] create firebase successfully returned:', returnedFbUrl);
 		firebaseObj.fbUrl = returnedFbUrl;
-		createS3Bucket(newAppName).then(function() {
-	  	uploadToBucket(newAppName, "fs/seed").then(function(bucketUrl){
+		createS3Bucket(firebaseObj.dbName).then(function() {
+	  	uploadToBucket(firebaseObj.dbName, "fs/seed").then(function(bucketUrl){
 	  		firebaseObj.appUrl = bucketUrl;
-	  		saveFolderToFirebase(newAppName).then(function(jsonFolder){
+	  		saveFolderToFirebase(firebaseObj.dbName).then(function(jsonFolder){
 	  			// firebaseObj.structure = jsonFolder;
 	  			deferred.resolve(firebaseObj);
 	  		}, function(error){
