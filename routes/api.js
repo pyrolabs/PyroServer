@@ -166,7 +166,7 @@ router.post('/app/upload', function(req, res){
 		var path = req.body.filePath.replace(".", "%20");
 		console.log('[/app/upload] request is the correct shape');
 		pyrofb.child('instances').child(appName).once('value', function(appSnap){
-				console.log('[/app/upload appSnap:]:', appSnap);
+				console.log('[/app/upload appSnap:]:', appSnap.val());
 				var appData = appSnap.val();
 				if(appData) {
 					console.log('[/app/upload app data:]', appData);
@@ -221,12 +221,16 @@ function uploadFromRamList(argBucketName, argFileKey, argUid){
 }
 
 function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
+	awsSdk.config.update({ accessKeyId: process.env.PYRO_SERVER_S3_KEY, secretAccessKey: process.env.PYRO_SERVER_S3_SECRET });
+
+	var news3 = new awsSdk.S3();
+
 	console.log('[saveToFileOnS3] saveFile called', arguments);
 	var filePath = argFileKey.replace('%20', '.');
   var deferred = Q.defer();
   var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents};
   console.log('[saveToFileOnS3] saveParams:', saveParams)
-  s3.putObject(saveParams, function(err, data){
+  news3.putObject(saveParams, function(err, data){
     if(!err){
       console.log('[saveToFileOnS3] file saved successfully. Returning:', data);
       deferred.resolve(data);
