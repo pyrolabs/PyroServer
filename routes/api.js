@@ -163,7 +163,7 @@ router.post('/app/upload', function(req, res){
 		var appName = req.body.name;
 		var bucketName = "pyro-" + req.body.name;
 		var userUid = req.body.uid;
-		var path = req.body.filePath.replace(".", "%20");
+		var path = req.body.filePath.replace(".", ":");
 		console.log('[/app/upload] request is the correct shape');
 		pyrofb.child('instances').child(appName).once('value', function(appSnap){
 				console.log('[/app/upload appSnap:]:', appSnap.val());
@@ -199,16 +199,32 @@ function uploadFromRamList(argBucketName, argFileKey, argUid){
 	console.log('uploadFromRamList called');
 	var deferred = Q.defer()
 	// File reference in userRam list
-	var fileRef = pyrofb.child('userRam').child(argUid).child(argFileKey);
+	
+
+	var pathArray = argFileKey.split('/');
+	pathArray.shift();
+	console.log("\n\nSPLIT: ",pathArray);
+
+
+	var fileRef = pyrofb.child('userRam').child(argUid).child(pathArray[0]);
+	pathArray.shift();
+	pathArray = pathArray.join(':');
+	fileRef = fileRef.child(pathArray);
+	console.log("\n\nFILEREF: ",fileRef);
+	// console.log("\n\nFILEREF: ",fileRef);
+
+
 	// Load File
 	fileRef.once('value', function(fileSnap){
 		if(fileSnap) {
 			//file exists in file ref
 			var fileString = fileSnap.val().content;
+			console.log("\n\n FILE STRING",fileString)
 
 			console.log("\n\n FILE KEY",argFileKey)
       var resFileKey = argFileKey.replace('/'+argBucketName+'/', '');
-      var resFileKey = resFileKey.replace('%20', '.');
+      var resFileKey = resFileKey.replace(':', '.');
+			console.log("\n\n RESFILE KEY",resFileKey)
 
 
 			saveToFileOnS3(argBucketName, resFileKey, fileString).then(function(returnedData){
@@ -232,13 +248,15 @@ function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
 	var news3 = new awsSdk.S3();
 
 	console.log('[saveToFileOnS3] saveFile called', arguments);
-	var filePath = argFileKey.replace('%20', '.');
+	var filePath = argFileKey.replace(':', '.');
   var deferred = Q.defer();
-  var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents};
+  var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents, ACL: 'public-read-write'};
   console.log('[saveToFileOnS3] saveParams:', saveParams)
   news3.putObject(saveParams, function(err, data){
     if(!err){
       console.log('[saveToFileOnS3] file saved successfully. Returning:', data);
+
+
       deferred.resolve(data);
     } else {
       console.log('[saveToFileOnS3] error saving file:', err);
