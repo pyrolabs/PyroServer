@@ -244,13 +244,39 @@ function uploadFromRamList(argBucketName, argFileKey, argUid){
 
 function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
 	awsSdk.config.update({ accessKeyId: process.env.PYRO_SERVER_S3_KEY, secretAccessKey: process.env.PYRO_SERVER_S3_SECRET });
+	
+	var fileType = argFileKey.split('.')[1];
+	var contentType;
+	if (fileType=='html') {
+		contentType = 'text/html'
+	} else if(fileType=='js') {
+		contentType = 'application/javascript'
+	} else if(fileType=='css') {
+		contentType = 'text/css'
+	} else if(fileType=='json') {
+		contentType = 'application/json'
+	} else if(fileType=='jpg'||fileType=='jpeg'||fileType=='jpe') {
+		contentType = 'image/jpeg'
+	} else if(fileType=='png') {
+		contentType = 'image/png'
+	} else if(fileType=='gif') {
+		contentType = 'image/gif'
+	} else if(fileType=='svg') {
+		contentType = 'image/svg+xml'
+	} else {
+		contentType = 'application/octet-stream'
+	}
+
+
+	console.log("FILETYPE ====> ",fileType);
+
 
 	var news3 = new awsSdk.S3();
 
 	console.log('[saveToFileOnS3] saveFile called', arguments);
 	var filePath = argFileKey.replace(':', '.');
   var deferred = Q.defer();
-  var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents, ACL: 'public-read-write'};
+  var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents, ACL: 'public-read', ContentType: contentType};
   console.log('[saveToFileOnS3] saveParams:', saveParams)
   news3.putObject(saveParams, function(err, data){
     if(!err){
