@@ -299,8 +299,8 @@ function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
 router.post('/fb/account/new', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
 		createFirebaseAccount(req.body.email, req.body.password).then(function(account){
-			var fbAccountData = {token: account.adminToken, email:req.body.email};
-			respond({status:200, account: account, message:'fb account created successfully'}, res);
+			var fbAccountData = {token: account.adminToken, email:req.body.email, account:account};
+			respond({status:200, account: fbAccountData, message:'fb account created successfully'}, res);
 		}, function(errResponse){
 			respond(errResponse, res);
 		});
@@ -663,8 +663,13 @@ function getFirebaseAccount(argEmail, argPass){
 	var deferred = Q.defer();
 	FirebaseAccount.getToken(argEmail, argPass).then(function(token) {
 	  var account = new FirebaseAccount(token);
-	  console.log('getFirebaseAccount successful:', account);
-	  deferred.resolve(account);
+	  if(accont){
+	  	console.log('getFirebaseAccount successful:', account);
+	  	deferred.resolve(account);
+	  } else {
+	  	console.error('Account is null');
+	  	deferred.reject();
+	  }
 	}, function(error){
 		console.error('Error getting firebase token:', error);
 		var errObj = {status:401, message:'Error getting Firebase account', error: error.toString().replace("Error: ", "")};
