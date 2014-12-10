@@ -680,7 +680,7 @@ function getFirebaseAccount(argEmail, argPass){
 		console.error('Error getting firebase token:', error);
 		var errorString = error.toString().replace("Error: Firebase error: ", "")
 		var resObj = {error: errorString};
-		if(errorString == 'Unauthorized. Authentication required') {
+		if(errorString == 'Unauthorized. Authentication required.') {
 			resObj.status = 204;
 			resObj.message = 'Firebase account does not already exist';
 			console.warn('res obj:', resObj);
