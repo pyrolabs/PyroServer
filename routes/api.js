@@ -44,7 +44,7 @@ function serverLoginToPyro(){
 			});
 		});
 	} else {
-		throw Error('Enter firebase secret');
+		throw Error('Missing Firebase Secret. Check Environment variable');
 	}
 	return deferred.promise;
 }
@@ -299,7 +299,7 @@ function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
 router.post('/fb/account/new', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
 		createFirebaseAccount(req.body.email, req.body.password).then(function(account){
-			var fbAccountData = {token: account.adminToken, email:req.body.email, account:account};
+			var fbAccountData = {token: account.adminToken, email:req.body.email};
 			respond({status:200, account: fbAccountData, message:'fb account created successfully'}, res);
 		}, function(errResponse){
 			respond(errResponse, res);
@@ -513,7 +513,12 @@ function createFirebaseAccount(argEmail, argPass) {
 			var bodyData = JSON.parse(body);
 			if(!error && !bodyData.hasOwnProperty('error')) {
 				console.log('Firebase account created successfully:', bodyData);
-				deferred.resolve(bodyData);
+				getFirebaseAccount(argEmail, argPass).then(function(account){
+					console.log('New firebase account retreieved successfully:', account);
+					deferred.resolve(account);
+				}, function(){
+					deferred.reject({status:401, message:'Error getting newly created Firebase account:' + bodyData.error});
+				});
 			} else {
 				console.warn('[createFirebaseAccount] Error creating Firebase account:', bodyData.error);
 				var errObj = {status:401, error:bodyData.error, message:'Error creating Firebase account:' + bodyData.error};
@@ -560,7 +565,7 @@ function createFirebaseInstance(argUid, argName) {
  * @params {string} Name Name of instance to get
  */
 function getFirebaseInstance(argUid, argName) {
-	console.log('createFirebaseInstance called:');
+	console.log('getFirebaseInstance called:');
 	var deferred = Q.defer();
 	if(argUid && argName){
 		console.log('Instance info:', argUid, argName);
@@ -645,8 +650,8 @@ function getFirebaseAccountFromUid(argUid){
 		}
 	}, function(err){
 			console.error('[getFirebaseAccountFromUid] Could not lookup fbData:', err);
-			if(err.code == 'PERMISSION_DENIED'){
-				deferred.reject({status:401, message:'Incorrect user credentials from uid', error:err.code});
+			if(err.hasOwnProperty('code') && err.code == 'PERMISSION_DENIED'){
+				deferred.reject({status:401, message:'Incorrect user credentials from uid', error:err});
 			} else {
 				deferred.reject({status:500, message:'Server Error'});
 			}
@@ -662,8 +667,9 @@ function getFirebaseAccount(argEmail, argPass){
 	console.log('getFirebaseAccount', argEmail, argPass);
 	var deferred = Q.defer();
 	FirebaseAccount.getToken(argEmail, argPass).then(function(token) {
+		console.log('token returned:', token, ' creating firebase account with the token.');
 	  var account = new FirebaseAccount(token);
-	  if(accont){
+	  if(account){
 	  	console.log('getFirebaseAccount successful:', account);
 	  	deferred.resolve(account);
 	  } else {
