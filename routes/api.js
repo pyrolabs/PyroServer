@@ -678,9 +678,20 @@ function getFirebaseAccount(argEmail, argPass){
 	  }
 	}, function(error){
 		console.error('Error getting firebase token:', error);
-		var errObj = {status:401, message:'Error getting Firebase account', error: error.toString().replace("Error: ", "")};
-		console.warn('error response:', errObj);
-		deferred.reject(errObj);
+		var errorString = error.toString().replace("Error: Firebase error: ", "")
+		var resObj = {error: errorString};
+		if(errorString == 'Unauthorized. Authentication required') {
+			resObj.status = 204;
+			resObj.message = 'Firebase account does not already exist';
+			console.warn('res obj:', resObj);
+			deferred.resolve(resObj);
+		} else {
+			resObj.status = 500;
+			resObj.message = 'Error getting Firebase account';
+			console.warn('error response:', resObj);
+			deferred.reject(resObj);
+
+		}
 	}); //-- getToken
 	return deferred.promise;
 }
