@@ -316,9 +316,9 @@ router.post('/fb/account/new', function(req, res){
 // [TODO] Make this a get request?
 router.post('/fb/account/get', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
-		getFirebaseAccount(req.body.email, req.body.password).then(function(account){
-				console.log('Account for:' + req.body.email + ' has been updated to:' + account.adminToken);
-				respond({status:200, account: account, message:' Account loaded successfully'}, res);
+		getFirebaseAccount(req.body.email, req.body.password).then(function(resObj){
+				console.log('resObj for:' + req.body.email + ' has been updated to:' + resObj.account);
+				respond(resObj, res);
 		}, function(err){
 			respond(err, res);
 		}); 
