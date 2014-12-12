@@ -10,6 +10,9 @@
     "start": "node ./bin/www"
   },
   "devDependencies": {
+    "grunt": "^0.4.5",
+    "grunt-jsdoc": "^0.5.7",
+    "iodocs": "0.0.1",
     "nodemon": "^1.2.1"
   },
   "dependencies": {

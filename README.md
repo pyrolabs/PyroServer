@@ -27,14 +27,14 @@ The server is currently capable of the following:
     - `/delete` - NOT WORKING Deletes the following:
         + Firebase Instance
         + S3 Bucket
-    - `/fbAccount` - Create Firebase Account 
+    - `/fb`
+        + `/account/new` - Create new Firebase Acccount
+        + `/account/get` - Get Firebase account
     - `/test` - Testing endpoint that is often changing functionality
 
 ## Planned
 
 ### Soon
-
-* `/createAccount` - Create a firebase account with information passed in request. Match Firebase Admin API.
 
 * `/enableLogin` - Enable email/password auth. This will require an auth token as well as a call to the Firebase Admin API.
 
