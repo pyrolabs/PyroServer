@@ -100,7 +100,7 @@ router.post('/generate', function(req, res){
 	}
 });
 /** Create a new Bucket on S3, copy the seed to the bucket, set the bucket permissions
- * @endpoint /app/new
+ * @external Endpoint /app/new
  * @params {string} Name Name of list to retreive
  * @params {string} Uid Uid of user to generate for
  */
@@ -136,7 +136,7 @@ router.post('/app/new', function(req, res){
 	}
 });
 /** Upload app by pulling the information from Firebase
- * @endpoint /app/upload
+ * @external Endpoint /app/upload
  * @params {string} Name Name of list to retreive
  * @params {string} Uid Uid of user to generate for
  */
@@ -257,7 +257,7 @@ function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
   return deferred.promise;
 }
 /** New Fb Account 
- * @endpoint api/fb/account/get
+ * @external Endpoint api/fb/account/get
  * @params {string} email Email of account to get
  * @params {string} password Password of account to get
  */
@@ -381,6 +381,11 @@ function respond(argResInfo, res){
 		res.end();
 	}
 }
+/** Create a new Database, and copy a new app to a new S3 bucket under the same bucket name as the database
+ * @function generatePyroApp
+ * @params {string} uid Uid of new accont on which to generate pyro app
+ * @params {string} Password Name of new instance
+ */
 function newApp(newAppName){
 	console.log('newApp:', newAppName);
 	// create new firebase with "pyro-"" ammended to front of the app name
@@ -411,7 +416,7 @@ function newApp(newAppName){
 
 /** Create a new Database, and copy a new app to a new S3 bucket under the same bucket name as the database
  * @function generatePyroApp
- * @params {string} Email Email of new Firebase account to create
+ * @params {string} uid Uid of new accont on which to generate pyro app
  * @params {string} Password Name of new instance
  */
 function generatePyroApp(argUid, argName) {
@@ -434,20 +439,20 @@ function generatePyroApp(argUid, argName) {
 	  			console.log('[generatePyroApp] saveFolderToFirebase successful');
 	  			deferred.resolve(firebaseObj);
 	  		}, function(error){
-	  				console.error('[generatePyroApp] saving folder structure to Firebase:', err);
+	  				console.error('[generatePyroApp] saving folder structure to Firebase:', error);
 	  				deferred.reject(error);
 	  		});
 	  	}, function(err){
 					console.error('[generatePyroApp] error uploading seed to S3:', err);
-	  			deferred.reject(error);
+	  			deferred.reject(err);
 	  	});
   	}, function(err){
   		console.error('[generatePyroApp] creating S3 bucket:', err);
-			deferred.reject(error);
+			deferred.reject(err);
   	});
 	}, function(err){
-		console.error('[generatePyroApp] error creating firebase instance', err);
-		deferred.reject(error);
+		console.error('[generatePyroApp] error creating firebase instance, err:', err);
+		deferred.reject(err);
 	});
 	return deferred.promise;
 }
@@ -512,15 +517,22 @@ function createFirebaseInstance(argUid, argName) {
 	getFirebaseAccountFromUid(argUid).then(function(account){
 		account.createDatabase(argName).then(function(instance) {
 	    // var appfb = new Firebase(instance.toString());
-	    console.log('instance created:', instance.toString());
+	    console.log('[createFirebaseInstance] instance created:', instance.toString());
 	    // Enable email & password auth
-	    deferred.resolve(instance.toString());
+	    enableEmailAuth(account, argName).then(function(){
+	    	console.log('[createFirebaseInstance] Email/Password auth enabled on new instance:', instance.toString());
+	    	deferred.resolve(instance.toString());
+	    }, function(err){
+	    	deferred.reject({status:500, message:err.toString()});
+	    });
 	  }).catch(function(err) {
-	    console.error('Error creating firebase instance:', err);
-	    deferred.reject({status:500, message:JSON.stringify(err)});
+	  	var errObj = {status:500, error:err.toString().replace("Error: ", "")};
+	    console.error('[createFirebaseInstance] Error creating firebase instance:', errObj);
+	    deferred.reject(errObj);
 	  });
 	}, function(err1){
-	    deferred.reject({status:500, message:JSON.stringify(err1)});
+	    console.error('[createFirebaseInstance] Error getting firebase account from UID:', err1);
+	    deferred.reject({status:500, message:err1.toString()});
 	});
 	return deferred.promise;
 }
