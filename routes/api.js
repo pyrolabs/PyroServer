@@ -173,6 +173,136 @@ router.post('/app/upload', function(req, res){
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
+
+/** New Fb Account 
+ * @external Endpoint api/fb/account/get
+ * @params {string} email Email of account to get
+ * @params {string} password Password of account to get
+ */
+router.post('/fb/account/new', function(req, res){
+	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
+		createFirebaseAccount(req.body.email, req.body.password).then(function(account){
+			var fbAccountData = {token: account.adminToken, email:req.body.email};
+			respond({status:200, account: fbAccountData, message:'fb account created successfully'}, res);
+		}, function(errResponse){
+			respond(errResponse, res);
+		});
+	} else {
+		respond({status:500, message:'Incorrectly formatted request'}, res);
+	}
+});
+/** Get Fb Account 
+ * @external Endpoint api/fb/account/get
+ * @params {string} email Email of account to get
+ * @params {string} password Password of account to get
+ * @returns {object} resObject Response object
+ */
+// [TODO] Make this a get request?
+router.post('/fb/account/get', function(req, res){
+	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
+		getFirebaseAccount(req.body.email, req.body.password).then(function(resObj){
+				console.log('resObj for:' + req.body.email + ' has been updated to:' + resObj.account);
+				respond(resObj, res);
+		}, function(err){
+			respond(err, res);
+		}); 
+	} else {
+		respond({status:500, message:'Incorrectly formatted request'}, res);
+	}
+});
+/** Get Fb Instance
+ * @namespace api/fb/instance/get
+ * @params {string} uid Uid of account to get
+ * @params {string} instanceName Name of instance you would like to get
+ */
+router.post('/fb/instance/get', function(req, res){
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')) {
+		getFirebaseInstance(req.body.uid, req.body.name).then(function(returnedInstance){
+			respond({status:200, instance: returnedInstance}, res);
+		}, function(err){
+			console.error('error getting firebase instance:', err);
+			respond(err, res);
+		});
+	} else {
+		respond({status:500, message:'Incorrectly formatted request'}, res);
+	}
+});
+/** Configure email/password auth on Firebase account given uid 
+ * @endpoint api/fb/config
+ * @params {string} uid Uid of account to enable email auth on
+ * @params {string} name Name of instance to enable email auth on
+ */
+router.post('/fb/config', function(req, res){
+	console.log('api test post received:', req.body);
+	if(req.body.hasOwnProperty('uid') && req.body.hasOwnProperty('name')){
+		getFirebaseAccountFromUid(req.body.uid).then(function(account){
+			enableEmailAuth(account, "pyro-" + req.body.name).then(function(){
+				console.log('emailAuth enabled successfully');
+				respond({status:200, message:'emailAuth enabled successfully for ' + req.body.name}, res);
+			});
+		}, function(err){
+			console.error('error getting firebase account from uid', err);
+			respond(err, res);
+		});
+	} else {
+		respond({status:500, message:"Invalid request parameters", error:"INVALID_PARAMS"}, res);
+	}
+});
+/** NOT WORKING  Delete the pyro application given name. This includes the S3 bucket, and should have the option to include the Firebase instance and Account seperatetly in the delete.
+ * @endpoint api/delete
+ * @params {string} email Email of account to get
+ * @params {string} password Password of account to get
+ */
+router.post('/delete', function(req, res) {
+	console.log('Delete request received:', req.body);
+	// [TODO] Make this delete firebase
+		if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
+		var newAppName = req.body.name;
+		var author = req.body.uid;
+		deletePyroApp(req.body.name, req.body.uid).then(function(){
+			respond({status:200, message:'Pyro app deleted successfully'});
+		}, function(err){
+			respond(err, res);
+		})
+	} else {
+		respond({status:500, message:'Incorrect request format'}, res);
+	}
+});
+/** TEST ENDPOINT Params are always changing so they are not listed
+ * @endpoint api/test
+ */
+router.post('/test', function(req, res){
+	console.log('api test post received:', req.body);
+	var bucketName = "pyro-"+req.body.name
+	deleteS3Bucket(bucketName).then(function(){
+		respond({status:200, message:'S3 bucket deleted successfully'}, res)
+	}, function(error){
+		respond(error,res)
+	});
+	// saveFolderToFirebase(req.body.name).then(function(jsonFolder){
+	// 	console.log('JSON folder:', jsonFolder);
+	// 	respond({status:200, message:'Save folder to firebase successful'}, res);
+	// }, function(error){
+	// 	respond(error,res);
+	// });
+});
+// -------------------Helper Functions------------------
+/** Respond with a status header if available
+ * @function respond
+ * @params {string} Response info
+ * @params {string} res Response object to send responses with/to
+ */
+function respond(argResInfo, res){
+	// {status:500, error:errObj}
+	if(argResInfo && argResInfo.hasOwnProperty('status')){
+		res.writeHead(argResInfo.status, {'Content-Type':'application/json'});
+		res.write(JSON.stringify(argResInfo));
+		res.end();
+	} else {
+		res.write(JSON.stringify(argResInfo));
+		res.end();
+	}
+}
 /** Upload app file to s3 by pulling the information from Firebase
  * @endpoint /app/new
  * @params {object} uploadObject Name of list to retreive
@@ -256,131 +386,6 @@ function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
   });
   return deferred.promise;
 }
-/** New Fb Account 
- * @external Endpoint api/fb/account/get
- * @params {string} email Email of account to get
- * @params {string} password Password of account to get
- */
-router.post('/fb/account/new', function(req, res){
-	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
-		createFirebaseAccount(req.body.email, req.body.password).then(function(account){
-			var fbAccountData = {token: account.adminToken, email:req.body.email};
-			respond({status:200, account: fbAccountData, message:'fb account created successfully'}, res);
-		}, function(errResponse){
-			respond(errResponse, res);
-		});
-	} else {
-		respond({status:500, message:'Incorrectly formatted request'}, res);
-	}
-});
-/** Get Fb Account 
- * @external Endpoint api/fb/account/get
- * @params {string} email Email of account to get
- * @params {string} password Password of account to get
- * @returns {object} resObject Response object
- */
-// [TODO] Make this a get request?
-router.post('/fb/account/get', function(req, res){
-	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
-		getFirebaseAccount(req.body.email, req.body.password).then(function(resObj){
-				console.log('resObj for:' + req.body.email + ' has been updated to:' + resObj.account);
-				respond(resObj, res);
-		}, function(err){
-			respond(err, res);
-		}); 
-	} else {
-		respond({status:500, message:'Incorrectly formatted request'}, res);
-	}
-});
-/** Get Fb Instance
- * @namespace api/fb/instance/get
- * @params {string} uid Uid of account to get
- * @params {string} instanceName Name of instance you would like to get
- */
-router.post('/fb/instance/get', function(req, res){
-	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')) {
-		getFirebaseInstance(req.body.uid, req.body.name).then(function(returnedInstance){
-			respond({status:200, instance: returnedInstance}, res);
-		}, function(err){
-			console.error('error getting firebase instance:', err);
-			respond(err, res);
-		});
-	} else {
-		respond({status:500, message:'Incorrectly formatted request'}, res);
-	}
-});
-/** Configure email/password auth on Firebase account given uid 
- * @endpoint api/fb/config
- * @params {string} uid Uid of account to enable email auth on
- * @params {string} name Name of instance to enable email auth on
- */
-router.post('/fb/config', function(req, res){
-	console.log('api test post received:', req.body);
-	getFirebaseAccountFromUid(req.body.uid).then(function(account){
-		enableEmailAuth(account, "pyro-" + req.body.name, res, function(){
-			console.log('emailAuth enabled successfully');
-			respond({status:200, message:'emailAuth enabled successfully for ' + req.body.name}, res);
-		});
-	}, function(err){
-		console.error('error getting firebase account from uid', err);
-		respond(err, res);
-	});
-});
-/** NOT WORKING  Delete the pyro application given name. This includes the S3 bucket, and should have the option to include the Firebase instance and Account seperatetly in the delete.
- * @endpoint api/delete
- * @params {string} email Email of account to get
- * @params {string} password Password of account to get
- */
-router.post('/delete', function(req, res) {
-	console.log('Delete request received:', req.body);
-	// [TODO] Make this delete firebase
-		if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
-		var newAppName = req.body.name;
-		var author = req.body.uid;
-		deletePyroApp(req.body.name, req.body.uid).then(function(){
-			respond({status:200, message:'Pyro app deleted successfully'});
-		}, function(err){
-			respond(err, res);
-		})
-	} else {
-		respond({status:500, message:'Incorrect request format'}, res);
-	}
-});
-/** TEST ENDPOINT Params are always changing so they are not listed
- * @endpoint api/test
- */
-router.post('/test', function(req, res){
-	console.log('api test post received:', req.body);
-	var bucketName = "pyro-"+req.body.name
-	deleteS3Bucket(bucketName).then(function(){
-		respond({status:200, message:'S3 bucket deleted successfully'}, res)
-	}, function(error){
-		respond(error,res)
-	});
-	// saveFolderToFirebase(req.body.name).then(function(jsonFolder){
-	// 	console.log('JSON folder:', jsonFolder);
-	// 	respond({status:200, message:'Save folder to firebase successful'}, res);
-	// }, function(error){
-	// 	respond(error,res);
-	// });
-});
-// -------------------Helper Functions------------------
-/** Respond with a status header if available
- * @function respond
- * @params {string} Response info
- * @params {string} res Response object to send responses with/to
- */
-function respond(argResInfo, res){
-	// {status:500, error:errObj}
-	if(argResInfo && argResInfo.hasOwnProperty('status')){
-		res.writeHead(argResInfo.status, {'Content-Type':'application/json'});
-		res.write(JSON.stringify(argResInfo));
-		res.end();
-	} else {
-		res.write(JSON.stringify(argResInfo));
-		res.end();
-	}
-}
 /** Create a new Database, and copy a new app to a new S3 bucket under the same bucket name as the database
  * @function generatePyroApp
  * @params {string} uid Uid of new accont on which to generate pyro app
@@ -432,26 +437,26 @@ function generatePyroApp(argUid, argName) {
 		createAndConfigS3Bucket(firebaseObj.dbName).then(function() {
 			console.log('[generatePyroApp] createAndConfigS3Bucket returned. Calling uploadToBucket');
 	  	uploadToBucket(firebaseObj.dbName, "fs/seed").then(function(bucketUrl){
-				console.log('[generatePyroApp] uploadToBucket returned. Calling saveFolderToFirebase', bucketUrl);
+				console.log('[generatePyroApp] UploadToBucket returned. Calling saveFolderToFirebase', bucketUrl);
 		  	firebaseObj.appUrl = bucketUrl;
 	  		saveFolderToFirebase(argName).then(function(jsonFolder){
 	  			// firebaseObj.structure = jsonFolder;
-	  			console.log('[generatePyroApp] saveFolderToFirebase successful');
+	  			console.log('[generatePyroApp] SaveFolderToFirebase successful');
 	  			deferred.resolve(firebaseObj);
 	  		}, function(error){
-	  				console.error('[generatePyroApp] saving folder structure to Firebase:', error);
+	  				console.error('[generatePyroApp] Saving folder structure to Firebase:', error);
 	  				deferred.reject(error);
 	  		});
 	  	}, function(err){
-					console.error('[generatePyroApp] error uploading seed to S3:', err);
+					console.error('[generatePyroApp] Error uploading seed to S3:', err);
 	  			deferred.reject(err);
 	  	});
   	}, function(err){
-  		console.error('[generatePyroApp] creating S3 bucket:', err);
+  		console.error('[generatePyroApp] Creating S3 bucket:', err);
 			deferred.reject(err);
   	});
 	}, function(err){
-		console.error('[generatePyroApp] error creating firebase instance, err:', err);
+		console.error('[generatePyroApp] Error creating firebase instance, err:', err);
 		deferred.reject(err);
 	});
 	return deferred.promise;
@@ -519,12 +524,14 @@ function createFirebaseInstance(argUid, argName) {
 	    // var appfb = new Firebase(instance.toString());
 	    console.log('[createFirebaseInstance] instance created:', instance.toString());
 	    // Enable email & password auth
-	    enableEmailAuth(account, argName).then(function(){
-	    	console.log('[createFirebaseInstance] Email/Password auth enabled on new instance:', instance.toString());
-	    	deferred.resolve(instance.toString());
-	    }, function(err){
-	    	deferred.reject({status:500, message:err.toString()});
-	    });
+	    deferred.resolve(instance.toString());
+	    // Enabling email auth on a newly created firebase does not work
+	    // enableEmailAuth(account, argName).then(function(){
+	    // 	console.log('[createFirebaseInstance] Email/Password auth enabled on new instance:', instance.toString());
+	    // 	deferred.resolve(instance.toString());
+	    // }, function(err){
+	    // 	deferred.reject({status:500, message:err.toString()});
+	    // });
 	  }).catch(function(err) {
 	  	var errObj = {status:500, error:err.toString().replace("Error: ", "")};
 	    console.error('[createFirebaseInstance] Error creating firebase instance:', errObj);
@@ -573,19 +580,21 @@ function getFirebaseInstance(argUid, argName) {
 function deleteFirebaseInstance(argUid, argName){
 	var deferred = Q.defer();
 	if(argUid && argName){
+		console.log('[deleteFirebaseInstance] called with:', argUid, argName);
 		getFirebaseAccountFromUid(argUid).then(function(account){
 			account.deleteDatabase(argName).then(function(instance) {
-		    console.log('instance deleted successfully:', instance.toString());
+		    console.log('[deleteFirebaseInstance] instance deleted successfully:', instance.toString());
 		    deferred.resolve(instance.toString());
 		  }).catch(function(err) {
-		    console.error('Error creating firebase instance:', err);
-		    deferred.reject({status:500, message:JSON.stringify(err)});
+		    console.error('[deleteFirebaseInstance] Error creating firebase instance:', err.toString());
+		    deferred.reject({status:500, message:err.toString()});
 		  });
 		}, function(err1){
-		    deferred.reject({status:500, message:JSON.stringify(err1)});
+		    console.error('[deleteFirebaseInstance] Error creating firebase instance:', err.toString());
+		    deferred.reject({status:500, message:err1.toString()});
 		});
 	} else {
-		deferred.reject({status:500, message:'Incorrect request parameters'});
+		deferred.reject({status:500, message:'Incorrect request parameters', error:"INVALID_PARAMS"});
 	}
 	return deferred.promise;
 }
@@ -620,6 +629,7 @@ function getFirebaseAccountFromUid(argUid){
 		if(fbDataSnap.val() != null) {
 			console.log('[getFirebaseAccountFromUid] returned fbData:', fbDataSnap.val());
 			var account = new FirebaseAccount(fbDataSnap.val().token);
+			console.log('[getFirebaseAccountFromUid] resolving account:', account);
 			deferred.resolve(account);
 		} else {
 			console.log('[getFirebaseAccountFromUid] FbData does not exist for this user');
@@ -735,17 +745,21 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
  * @params {string} bucketName Name of bucket to delete
  */
 function deletePyroApp(argAppName, argUid){
+	console.log('[deletePyroApp] called with: ', argAppName, argUid);
 	var bucketName = "pyro-"+ argAppName;
 	// [TODO] Delete firebase instance as well
 	var deferred = Q.defer();
 	deleteS3Bucket(bucketName).then(function(){
+		console.log('[deletePyroApp] S3 bucket deleted successfully');
 		deleteFirebaseInstance(argUid, argAppName).then(function(){
-			console.log('deletePyroApp successful');
+			console.log('deletePyroApp S3 Bucket and Firebase Instanace delete successful');
 			deferred.resolve();
 		}, function(err){
+			console.error('[deletePyroApp] Error deleting firebase instance:', err);
 			deferred.reject(err);
 		});
 	}, function(err){
+		console.error('[deletePyroApp] Error deleting S3 bucket instance:', err);
 		deferred.reject(err);
 	});
 	return deferred.promise;
@@ -771,7 +785,7 @@ function deletePyroApp(argAppName, argUid){
 		});
 		return deferredCreate.promise;
 	}
-/** Delete an S3 bucket
+/** Remove all contents then delete an S3 bucket
  * @function deleteS3Bucket
  * @params {string} bucketName Name of bucket to delete
  */
@@ -781,7 +795,6 @@ function deletePyroApp(argAppName, argUid){
 		var s3bucket = new awsSdk.S3();
 		// Empty bucket
 		var deleteTask = client.deleteDir({Bucket: argBucketName});
-
 		deleteTask.on('error', function(err){
 			console.error('error deleting bucket:', err);
 			deferredDelete.reject({status:500, error:err});
