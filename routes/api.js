@@ -201,7 +201,7 @@ router.post('/fb/account/new', function(req, res){
 router.post('/fb/account/get', function(req, res){
 	if(req.body.hasOwnProperty('email') && req.body.hasOwnProperty('password')) {
 		getFirebaseAccount(req.body.email, req.body.password).then(function(resObj){
-				console.log('resObj for:' + req.body.email + ' has been updated to:' + resObj.account);
+				console.log('resObj for:' + req.body.email + ' has been updated to:' + resObj);
 				respond(resObj, res);
 		}, function(err){
 			respond(err, res);
@@ -607,14 +607,14 @@ function enableEmailAuth(argAccount, argDbName) {
 	console.log('enableEmailAuth called');
 	var deferred = Q.defer();
 	argAccount.getDatabase(argDbName).then(function(instance){
-		console.log('instance:', instance.toString());
+		console.log('[enableEmailAuth] getDatabase returned instance:', instance.toString());
 		instance.setAuthConfig({password:{"enabled":true}}).then(function(){
-			console.log('Email&Password Authentication enabled succesfully for:', instance.toString());
+			console.log('[enableEmailAuth] Email&Password Authentication enabled succesfully for:', instance.toString());
 			deferred.resolve({status:200, message:'Email&Password Authentication enabled succesfully for ' + argDbName});
 		});
 	}, function(error){
-		console.error('error seeing auth config', error);
-		deferred.reject({status:500, message:'Error enabling auth settings'});
+		console.error('[enableEmailAuth] error setting auth config', error);
+		deferred.reject({status:500, message:'Error enabling auth settings', error:error.toString()});
 	});
 	return deferred.promise;
 }

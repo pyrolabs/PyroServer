@@ -1,0 +1,11 @@
+{"v":0,"level":30,"name":"newrelic","hostname":"Scotts-iMac.local","pid":6618,"time":"2014-12-20T21:00:52.033Z","msg":"Starting New Relic for Node.js connection process."}
+{"v":0,"level":30,"name":"newrelic","hostname":"Scotts-iMac.local","pid":6618,"time":"2014-12-20T21:00:53.272Z","msg":"Reporting to: https://rpm.newrelic.com/accounts/851959/applications/12083262","component":"new_relic_response"}
+{"v":0,"level":30,"name":"newrelic","hostname":"Scotts-iMac.local","pid":6618,"time":"2014-12-20T21:00:53.273Z","msg":"Connected to collector-121.newrelic.com:443 with agent run ID 51897223937428036.","component":"collector_api"}
+{"v":0,"level":50,"name":"newrelic","hostname":"Scotts-iMac.local","pid":6925,"time":"2014-12-20T21:09:02.409Z","msg":"A valid account license key cannot be found. Has a license key been specified in the agent configuration file or via the NEW_RELIC_LICENSE_KEY environment variable?"}
+{"v":0,"level":50,"name":"newrelic","hostname":"Scotts-iMac.local","pid":6925,"time":"2014-12-20T21:09:03.020Z","msg":"New Relic for Node.js halted startup due to an error:"}
+{"v":0,"level":30,"name":"newrelic","hostname":"Scotts-iMac.local","pid":7004,"time":"2014-12-20T21:09:30.208Z","msg":"Starting New Relic for Node.js connection process."}
+{"v":0,"level":30,"name":"newrelic","hostname":"Scotts-iMac.local","pid":7004,"time":"2014-12-20T21:09:31.261Z","msg":"Reporting to: https://rpm.newrelic.com/accounts/851959/applications/12083262","component":"new_relic_response"}
+{"v":0,"level":30,"name":"newrelic","hostname":"Scotts-iMac.local","pid":7004,"time":"2014-12-20T21:09:31.262Z","msg":"Connected to collector-121.newrelic.com:443 with agent run ID 51897223937452166.","component":"collector_api"}
+{"v":0,"level":30,"name":"newrelic","hostname":"Scotts-iMac.local","pid":7051,"time":"2014-12-20T21:10:18.195Z","msg":"Starting New Relic for Node.js connection process."}
+{"v":0,"level":30,"name":"newrelic","hostname":"Scotts-iMac.local","pid":7051,"time":"2014-12-20T21:10:19.262Z","msg":"Reporting to: https://rpm.newrelic.com/accounts/851959/applications/12083262","component":"new_relic_response"}
+{"v":0,"level":30,"name":"newrelic","hostname":"Scotts-iMac.local","pid":7051,"time":"2014-12-20T21:10:19.262Z","msg":"Connected to collector-121.newrelic.com:443 with agent run ID 51897223937454591.","component":"collector_api"}
