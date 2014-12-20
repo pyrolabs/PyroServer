@@ -1,23 +1,24 @@
-<ion-view title="Signup">
+<ion-view title="Pyro Starter">
   <ion-content padding="true" scroll="false" class="has-header">
     <form>
       <ion-list>
-        <ion-item ng-show="err.message"><h4 style="color:red;">{{err.message}}</h4></ion-item>
+        <div class="spacer" style="height: 40px;"></div>
+      <p class="text-center">Crate your Pyro Account:</p>
+      <div class="spacer" style="height: 20px;"></div>
+        <p ng-show="err.message" ><h5 class="text-center"style="color:red;font-weight:400;">{{err.message}}</h5></p>
         <label class="item item-input">
-          <span class="input-label">Email</span>
-          <input type="text" placeholder="" ng-model="signupData.email">
+          <input type="text" placeholder="Email" ng-model="signupData.email">
         </label>
         <label class="item item-input">
-          <span class="input-label">Password</span>
-          <input type="password" placeholder="" ng-model="signupData.password">
+          <input type="password" placeholder="Password" ng-model="signupData.password">
         </label>
         <label class="item item-input">
-          <span class="input-label">Password Confirmation</span>
-          <input type="password" placeholder="" ng-model="signupData.confirm">
+          <input type="password" placeholder="Password" ng-model="signupData.confirm">
         </label>
       </ion-list>
-      <button class="button button-stable button-block" ng-click="emailSignup()">Sign up</button>
+      <div class="spacer" style="height: 40px;"></div>
+      <button class="button button-stable button-block button-assertive" ng-click="emailSignup()">Create Account</button>
     </form>
-      <a href="#/login" class="button button-positive button-clear button-block">Or sign in to existing account</a>
+    <p class="item button-block button-clear text-center">Have an account? <a ui-sref="login">Sign in.</a></p>
   </ion-content>
 </ion-view>

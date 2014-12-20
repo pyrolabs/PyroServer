@@ -37,6 +37,11 @@ angular.module('pyroApp', ['ionic', 'pyroApp.controllers'])
       controller:'HomeCtrl',
       templateUrl: 'components/home/home-index.html',
     })
+    .state('landing', {
+      url: '/landing',
+      controller:'LandingCtrl',
+      templateUrl: 'components/landing/landing-index.html'
+    })
     .state('login', {
       url: '/login',
       controller:'LoginCtrl',
@@ -54,5 +59,5 @@ angular.module('pyroApp', ['ionic', 'pyroApp.controllers'])
     })
     ;
   // if none of the above states are matched, use this as the fallback
-  $urlRouterProvider.otherwise('/login');
+  $urlRouterProvider.otherwise('/landing');
 });

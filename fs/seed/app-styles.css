@@ -1,0 +1,60 @@
+*:not(i){
+  font-family: 'Lato', sans-serif !important;
+}
+
+h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+
+}
+
+ion-content h1 {
+  font-size: 6em;
+}
+ion-content h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+  font-weight: 100;
+}
+
+a {
+  color: #D84315;
+  text-decoration: none;
+}
+
+.m-n {
+  margin: 0 !important;
+}
+
+.bar-footer .title {
+  font-size:0.8em;
+}
+
+.text-theme {
+  color: #FF5722;
+}
+
+.text-theme.theme-dark {
+  color: #E64A19;
+}
+button {
+  font-weight: 700 !important;
+}
+
+.button-theme {
+  background-color: #FF5722;
+  color: white;
+}
+
+.button-assertive {
+  background-color: #F44336 !important;
+  color: white;
+}
+
+.logo-circle {
+  width: 200px;
+  height: 200px;
+  margin: auto;
+  border-radius: 100px;
+  -webkit-border-radius: 100px;
+  -moz-border-radius: 100px;
+  background: url(https://d13yacurqjgara.cloudfront.net/users/111413/screenshots/688911/flame_salon.png) no-repeat;
+  background-position: center;
+  background-repeat: no-repeat;
+}
