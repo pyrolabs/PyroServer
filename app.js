@@ -13,8 +13,7 @@ var auth = require('./routes/auth');
 var api = require('./routes/api');
 var _ = require('underscore');
 var Q = require('q');
-
-const enabledVersions = ['staging','1.0.0-a.1'];
+var fs = require('fs-extra');
 
 var app = express();
 
@@ -38,7 +37,12 @@ var corsOptions = {origin: function(origin, callback){
 app.use(cors());
 app.options('*', cors());
 app.use('/', routes);
-createEndpointsFromArray(enabledVersions, "./dist/");
+var versionDirectories = fs.readdirSync('./dist/');
+var versionNames = _.filter(versionDirectories, function(path){
+  return fs.lstatSync("./dist/"+ path).isDirectory();
+});
+console.log('Enabled versions:', versionNames);
+createEndpointsFromArray(versionNames, "./dist/");
 //Create endpoint for each version
 function createEndpointsFromArray(endpointsArray, folderPath){
   _.each(endpointsArray, function(element,index, list){
