@@ -56,6 +56,12 @@ module.exports = function(grunt) {
     //Copy current version
     grunt.loadNpmTasks('grunt-contrib-copy');
 
+     //Bump version commit and push
+    grunt.loadNpmTasks('grunt-bump');
+
+     //Shell commands (push to heroku)
+    grunt.loadNpmTasks('grunt-shell');
+
     // Default task(s).
     grunt.registerTask('default', [ 'jsdoc']);
     /* Builds minified script and creates documentation
