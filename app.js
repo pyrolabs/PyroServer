@@ -14,17 +14,10 @@ var api = require('./routes/api');
 var _ = require('underscore');
 var Q = require('q');
 
-
 const enabledVersions = ['staging','1.0.0-a.1'];
 
 var app = express();
-createEndpointsFromArray(enabledVersions, "./dist/");
-//Create endpoint for each version
-function createEndpointsFromArray(endpointsArray, folderPath){
-    _.each(endpointsArray, function(element,index, list){
-        app.use('/'+ element, require(folderPath + element + '/api.js'));
-    });
-}
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
@@ -37,7 +30,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 // API HEADERS
-var whitelist = ['https://pyro.firebaseapp.com', 'http://localhost:9000'];
+var whitelist = ['https://pyro.firebaseapp.com', 'http://localhost:9000', 'https://pyro-platform.firebaseapp.com', 'https://pyrolabs.io'];
 var corsOptions = {origin: function(origin, callback){
     var originIsWhitelisted = whitelist.indexOf(origin) !== -1;
     callback(null, originIsWhitelisted);
@@ -45,11 +38,13 @@ var corsOptions = {origin: function(origin, callback){
 app.use(cors());
 app.options('*', cors());
 app.use('/', routes);
-app.use('/auth', auth);
-app.use('/api', api);
-
-
-
+createEndpointsFromArray(enabledVersions, "./dist/");
+//Create endpoint for each version
+function createEndpointsFromArray(endpointsArray, folderPath){
+  _.each(endpointsArray, function(element,index, list){
+    app.use('/'+ element, require(folderPath + element + '/api.js'));
+  });
+}
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
