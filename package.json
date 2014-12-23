@@ -1,6 +1,6 @@
 {
   "name": "pyroServer",
-  "version": "0.0.2",
+  "version": "1.0.0-a.1",
   "author": "Prescott Prue <sprue.dev@gmail.com>",
   "private": true,
   "engines": {
@@ -11,6 +11,8 @@
   },
   "devDependencies": {
     "grunt": "^0.4.5",
+    "grunt-bump": "0.0.16",
+    "grunt-contrib-copy": "^0.7.0",
     "grunt-jsdoc": "^0.5.7",
     "iodocs": "0.0.1",
     "nodemon": "^1.2.1"

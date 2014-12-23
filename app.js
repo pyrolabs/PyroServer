@@ -5,15 +5,26 @@ var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
+var pkg = require('./package.json');
 var cors = require('cors');
 var routes = require('./routes/index');
 var users = require('./routes/users');
 var auth = require('./routes/auth');
 var api = require('./routes/api');
+var _ = require('underscore');
+var Q = require('q');
 
+
+const enabledVersions = ['staging','1.0.0-a.1'];
 
 var app = express();
-
+createEndpointsFromArray(enabledVersions, "./dist/");
+//Create endpoint for each version
+function createEndpointsFromArray(endpointsArray, folderPath){
+    _.each(endpointsArray, function(element,index, list){
+        app.use('/'+ element, require(folderPath + element + '/api.js'));
+    });
+}
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
@@ -36,6 +47,7 @@ app.options('*', cors());
 app.use('/', routes);
 app.use('/auth', auth);
 app.use('/api', api);
+
 
 
 
@@ -69,6 +81,50 @@ app.use(function(err, req, res, next) {
         error: {}
     });
 });
-
-
+var Firebase = require('firebase');
+var FirebaseTokenGenerator = require('firebase-token-generator');
+var pyrofb = new Firebase("https://pyro.firebaseio.com");
+pyrofb.onAuth(function(authData) {
+  if (authData) {
+    console.log("Authenticated with uid:", authData.uid);
+  } else {
+    console.log("Not authenticaed with pyrofb.");
+    serverLoginToPyro();
+  }
+});
+function serverLoginToPyro(){
+  console.log('Server login to pyro called');
+  var deferred = Q.defer();
+  if(process.env.hasOwnProperty('PYRO_SERVER_FB_SECRET')){
+    generateAdminToken(process.env.PYRO_SERVER_FB_SECRET).then(function(adminToken){
+      pyrofb.authWithCustomToken(adminToken, function(error, authData){
+        if(!error){
+          var savedAuthData = authData;
+          deferred.resolve(authData);
+        } else {
+          console.error('Error loggin into Pyro Firebase');
+          deferred.reject(error);
+        }
+      });
+    });
+  } else {
+    throw Error('Missing Firebase Secret. Check Environment variable');
+  }
+  return deferred.promise;
+}
+// Admin Token from Firebase's exposed library
+function generateAdminToken(argSecret){
+ var deferred = Q.defer();
+  if(argSecret) {
+    console.log('Generate Admin Token called:', argSecret);
+    var tokenGenerator = new FirebaseTokenGenerator(argSecret);
+    var authToken = tokenGenerator.createToken({uid: "pyroServer"}, 
+    {admin:true, debug:true});
+   deferred.resolve(authToken);
+  }
+  else {
+    deferred.reject({status:500, message:'Incorrect request format'});
+  }
+return deferred.promise;
+}
 module.exports = app;
