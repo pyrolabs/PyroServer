@@ -71,6 +71,6 @@ module.exports = function(grunt) {
     grunt.registerTask('stage', ['copy:stage', 'jsdoc']);
 
     //Bump version, Create docs, copy to dist folder, deploy to heroku
-    grunt.registerTask('release', ['bump:prerelease', 'copy:release', 'shell:deploy','jsdoc']);
+    grunt.registerTask('release', ['bump:prerelease','jsdoc', 'copy:release', 'shell:deploy']);
 
 };
