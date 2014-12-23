@@ -6,7 +6,15 @@ module.exports = function(grunt) {
         dist:{
           src: ['routes/api.js'], 
           options: {
-            destination: 'dist/docs',
+            destination: 'dist/<%= pkg.version %>/docs',
+            template : "node_modules/grunt-jsdoc/node_modules/ink-docstrap/template",
+            configure : "node_modules/grunt-jsdoc/node_modules/ink-docstrap/template/jsdoc.conf.json"
+          }
+        },
+        stage:{
+          src: ['routes/api.js'], 
+          options: {
+            destination: 'dist/staging/docs',
             template : "node_modules/grunt-jsdoc/node_modules/ink-docstrap/template",
             configure : "node_modules/grunt-jsdoc/node_modules/ink-docstrap/template/jsdoc.conf.json"
           }
@@ -18,11 +26,11 @@ module.exports = function(grunt) {
           updateConfigs:['pkg'],
           commit:true,
           commitMessage:'[RELEASE] Release v%VERSION%',
-          commitFiles:[],
+          commitFiles:['-a'],
           createTag:true,
           tagName:'v%VERSION%',
           push:true,
-          pushTo:'upstream',
+          pushTo:'origin',
           gitDescribeOptions: '--tags --always --abbrev=1 --dirty=-d',
           globalReplace: false
         }
@@ -34,8 +42,12 @@ module.exports = function(grunt) {
         release:{
           files:[{expand: true, cwd:'routes/', src: ['api.js'], dest: 'dist/<%= pkg.version %>/', filter: 'isFile'}]
         }
+      },
+      shell:{
+        deploy:{
+          command:'gh'
+        }
       }
-
     });
 
     // JSDoc
@@ -49,9 +61,10 @@ module.exports = function(grunt) {
     /* Builds minified script and creates documentation
       @task
     */
-    // 
+    //copy to dist folder, create docs 
     grunt.registerTask('stage', ['copy:stage', 'jsdoc']);
-    
-    grunt.registerTask('release', ['bump:prerelease','jsdoc', 'copy:release']);
+
+    //Bump version, Create docs, copy to dist folder, deploy to heroku
+    grunt.registerTask('release', ['bump:prerelease','jsdoc', 'copy:release', 'shell:deploy']);
 
 };
