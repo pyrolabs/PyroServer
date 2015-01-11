@@ -958,13 +958,18 @@ function saveFolderToFirebase(argAppName){
  * @function dirTree
  * @params {string} Path Folder or File path that contains structure to JSONify
  */
-function dirTree(filename) {
+function dirTree(filename, appName) {
   var stats = fs.lstatSync(filename)
   var name = path.basename(filename);
   var info = {
-    path: filename.replace("fs/", ""),
+    path: filename,
     name: name,
   };
+	// Remove file system prefix
+	info.path = info.path.replace("fs/", "");
+	// Remove project name
+	info.path = info.path.replace(appName + "/", "");
+	// Check if it is a directory
   if (stats.isDirectory()) {
     info.type = "folder";
 		info.children = {};
@@ -980,7 +985,6 @@ function dirTree(filename) {
   } else {
     // Assuming it's a file. In real life it could be a symlink or
     // something else!
-
     info.type = "file";
     info.filetype = mime.lookup(info.path).split("/")[1];
     // convert file to string and remove line breaks
