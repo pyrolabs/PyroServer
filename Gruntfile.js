@@ -4,7 +4,7 @@ module.exports = function(grunt) {
       pkg: grunt.file.readJSON('package.json'),
       jsdoc: {
         dist:{
-          src: ['routes/api.js'], 
+          src: ['routes/api.js'],
           options: {
             destination: 'dist/<%= pkg.version %>/docs',
             template : "node_modules/grunt-jsdoc/node_modules/ink-docstrap/template",
@@ -12,7 +12,7 @@ module.exports = function(grunt) {
           }
         },
         stage:{
-          src: ['routes/api.js'], 
+          src: ['routes/api.js'],
           options: {
             destination: 'dist/staging/docs',
             template : "node_modules/grunt-jsdoc/node_modules/ink-docstrap/template",
@@ -67,10 +67,10 @@ module.exports = function(grunt) {
     /* Builds minified script and creates documentation
       @task
     */
-    //copy to dist folder, create docs 
-    grunt.registerTask('stage', ['copy:stage', 'jsdoc']);
+    //copy to dist folder, create docs
+    grunt.registerTask('stage', ['copy:stage']);
 
     //Bump version, Create docs, copy to dist folder, deploy to heroku
-    grunt.registerTask('release', ['bump-only:prerelease','jsdoc', 'copy:release', 'bump-commit', 'shell:deploy']);
+    grunt.registerTask('release', ['bump-only:prerelease', 'copy:release', 'bump-commit', 'shell:deploy']);
 
 };

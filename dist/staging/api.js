@@ -26,7 +26,7 @@ var pyroAuth = function(){
 function configureS3AndGetClient(){
 	if(process.env.hasOwnProperty('PYRO_SERVER_S3_KEY')&&process.env.hasOwnProperty('PYRO_SERVER_S3_SECRET')){
 		awsSdk.config.update({
-			accessKeyId:process.env.PYRO_SERVER_S3_KEY, 
+			accessKeyId:process.env.PYRO_SERVER_S3_KEY,
 			secretAccesssKey:process.env.PYRO_SERVER_S3_SECRET
 		});
 		return s3.createClient({
@@ -146,7 +146,7 @@ router.post('/app/upload', function(req, res){
 	}
 });
 
-/** New Fb Account 
+/** New Fb Account
  * @external Endpoint api/fb/account/get
  * @params {string} email Email of account to get
  * @params {string} password Password of account to get
@@ -163,7 +163,7 @@ router.post('/fb/account/new', function(req, res){
 		respond({status:500, message:'Incorrectly formatted request'}, res);
 	}
 });
-/** Get Fb Account 
+/** Get Fb Account
  * @external Endpoint api/fb/account/get
  * @params {string} email Email of account to get
  * @params {string} password Password of account to get
@@ -177,7 +177,7 @@ router.post('/fb/account/get', function(req, res){
 				respond(resObj, res);
 		}, function(err){
 			respond(err, res);
-		}); 
+		});
 	} else {
 		respond({status:500, message:'Incorrectly formatted request'}, res);
 	}
@@ -199,7 +199,7 @@ router.post('/fb/instance/get', function(req, res){
 		respond({status:500, message:'Incorrectly formatted request'}, res);
 	}
 });
-/** Configure email/password auth on Firebase account given uid 
+/** Configure email/password auth on Firebase account given uid
  * @endpoint api/fb/config
  * @params {string} uid Uid of account to enable email auth on
  * @params {string} name Name of instance to enable email auth on
@@ -245,18 +245,18 @@ router.post('/delete', function(req, res) {
  */
 router.post('/test', function(req, res){
 	console.log('api test post received:', req.body);
-	var bucketName = "pyro-"+req.body.name
-	deleteS3Bucket(bucketName).then(function(){
-		respond({status:200, message:'S3 bucket deleted successfully'}, res)
-	}, function(error){
-		respond(error,res)
-	});
-	// saveFolderToFirebase(req.body.name).then(function(jsonFolder){
-	// 	console.log('JSON folder:', jsonFolder);
-	// 	respond({status:200, message:'Save folder to firebase successful'}, res);
+	// var bucketName = "pyro-"+req.body.name
+	// deleteS3Bucket(bucketName).then(function(){
+	// 	respond({status:200, message:'S3 bucket deleted successfully'}, res)
 	// }, function(error){
-	// 	respond(error,res);
+	// 	respond(error,res)
 	// });
+	saveFolderToFirebase(req.body.name).then(function(jsonFolder){
+		console.log('JSON folder:', jsonFolder);
+		respond({status:200, message:'Save folder to firebase successful'}, res);
+	}, function(error){
+		respond(error,res);
+	});
 });
 // -------------------Helper Functions------------------
 /** Respond with a status header if available
@@ -278,7 +278,7 @@ function respond(argResInfo, res){
 /** Upload app file to s3 by pulling the information from Firebase
  * @endpoint /app/new
  * @params {object} uploadObject Name of list to retreive
- * @params {string} uploadObject.appName Name of app to 
+ * @params {string} uploadObject.appName Name of app to
  */
 function uploadFromRamList(argBucketName, argFileKey, argUid){
 	console.log('uploadFromRamList called');
@@ -359,7 +359,7 @@ function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
   return deferred.promise;
 }
 /** Create a new Database, and copy a new app to a new S3 bucket under the same bucket name as the database
- * @function generatePyroApp
+ * @function newApp
  * @params {string} uid Uid of new accont on which to generate pyro app
  * @params {string} Password Name of new instance
  */
@@ -445,9 +445,9 @@ function createFirebaseAccount(argEmail, argPass) {
 	// check for account
 	if(argEmail && argPass){
 		var urlObj = {
-			protocol:'https:', 
-			host:'admin.firebase.com', 
-			pathname:'/joinbeta', 
+			protocol:'https:',
+			host:'admin.firebase.com',
+			pathname:'/joinbeta',
 			query: {
 				email: argEmail,
 				password: argPass
@@ -675,7 +675,7 @@ function getAppFb(argAppName){
 /** Upload to a bucket
  * @function uploadToBucket
  * @params {string} bucketName Name of bucket to upload to
- */ 
+ */
 function uploadToBucket(argBucketName, argLocalDir, argAppName){
 	console.log('uploadToBucket called:', argBucketName);
 	var dbUrl = "https://"+argBucketName+".firebaseio.com";
@@ -708,7 +708,7 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
 		  var bucketUrl = argBucketName + '.s3-website-us-east-1.amazonaws.com';
 		  console.log('uploader returning:', bucketUrl);
 		  deferred.resolve(bucketUrl);
-		});	
+		});
 	})
 	return deferred.promise;
 }
@@ -795,7 +795,7 @@ function deletePyroApp(argAppName, argUid){
 		var s3bucket = new awsSdk.S3();
 		var deferredSite = Q.defer();
 		s3bucket.putBucketWebsite({
-			Bucket: argBucketName, 
+			Bucket: argBucketName,
 			WebsiteConfiguration:{
 				IndexDocument:{
 					Suffix:'index.html'
@@ -821,7 +821,7 @@ function deletePyroApp(argAppName, argUid){
 		var s3bucket = new awsSdk.S3();
 		var deferredCors = Q.defer();
 		s3bucket.putBucketCors({
-			Bucket:argBucketName, 
+			Bucket:argBucketName,
 			CORSConfiguration:{
 				CORSRules: [
 		      {
@@ -930,6 +930,7 @@ function getListOfS3BucketContents(argBucketName) {
 	}
 	return deferred.promise;
 }
+// [TODO] Switch this to bucket copying/listing instead of using fs
 /** Converts a folder structure to JSON including file types given App name
  * @function saveFolderToFirebase
  * @params {string} AppName Name of App that you would like to get
@@ -937,7 +938,7 @@ function getListOfS3BucketContents(argBucketName) {
  */
 function saveFolderToFirebase(argAppName){
 	var deferredSave = Q.defer();
-	var appFolder = "fs/pyro-"+ argAppName;
+	var appFolder = "fs/"+argAppName;
 	console.log('[saveFolderToFirebase] appFolder:', appFolder);
 	var jsonTree = util.inspect(dirTree(appFolder), {depth:12}, null);
 	console.log('[saveFolderToFirebase] jsonTree:', jsonTree);
@@ -959,16 +960,23 @@ function saveFolderToFirebase(argAppName){
  */
 function dirTree(filename) {
   var stats = fs.lstatSync(filename)
-  var name = path.basename(filename).replace("fs/", "");
+  var name = path.basename(filename);
   var info = {
-    path: filename,
+    path: filename.replace("fs/", ""),
     name: name,
   };
   if (stats.isDirectory()) {
     info.type = "folder";
-    info.children = fs.readdirSync(filename).map(function(child) {
-        return dirTree(path.join(filename, child));
-    });
+		info.children = {};
+		// Remove periods and /
+		var filePathArray = fs.readdirSync(filename)
+		_.each(filePathArray, function(filePath){
+			if(filePath != ".DS_Store" && filePath != ".bower.json"){
+				var strFilePath = filePath.replaceAll(".", ":");
+				strFilePath = strFilePath.replaceAll("/", "_");
+				info.children[strFilePath] = dirTree(path.join(filename, filePath));
+			}
+		});
   } else {
     // Assuming it's a file. In real life it could be a symlink or
     // something else!
@@ -980,8 +988,10 @@ function dirTree(filename) {
   }
   return info;
 }
-
-
+String.prototype.replaceAll = function(str1, str2, ignore)
+{
+	return this.replace(new RegExp(str1.replace(/([\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g,"\\$&"),(ignore?"gi":"g")),(typeof(str2)=="string")?str2.replace(/\$/g,"$$$$"):str2);
+}
 module.exports = router;
 /** UNSECURE List objects from s3 given name
  * @endpoint /list
@@ -1009,7 +1019,7 @@ params:
 	 "pyro-exampleApp"
 
 	Sends instance info to Firebase:
-	instance:{name:'exampleApp', fburl:'pyro-exampleApp.firebaseio.com', author:'$uid of author'} 
+	instance:{name:'exampleApp', fburl:'pyro-exampleApp.firebaseio.com', author:'$uid of author'}
 */
 // router.post('/create', function(req, res){
 // 	console.log('request received:', req.body);
@@ -1033,7 +1043,7 @@ params:
 // 					res.write(newAppName);
 // 				  res.end();
 // 		    });
-		    
+
 // 		  }).catch(function(err) {
 // 		    console.error('Oops, error creating instance:', err);
 // 		    res.writeHead(500, {'Content-Type':'text/plain'});

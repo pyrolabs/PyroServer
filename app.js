@@ -37,6 +37,8 @@ var corsOptions = {origin: function(origin, callback){
 app.use(cors());
 app.options('*', cors());
 app.use('/', routes);
+// app.use('/dev', api);
+
 var versionDirectories = fs.readdirSync('./dist/');
 var versionNames = _.filter(versionDirectories, function(path){
   return fs.lstatSync("./dist/"+ path).isDirectory();
@@ -117,7 +119,7 @@ function generateAdminToken(argSecret){
   if(argSecret) {
     console.log('Generate Admin Token called:', argSecret);
     var tokenGenerator = new FirebaseTokenGenerator(argSecret);
-    var authToken = tokenGenerator.createToken({uid: "pyroServer"}, 
+    var authToken = tokenGenerator.createToken({uid: "pyroServer"},
     {admin:true, debug:true});
    deferred.resolve(authToken);
   }
