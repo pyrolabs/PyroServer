@@ -1,2 +1,4 @@
 node_modules
 .DS_Store
+fs/**
+newrelic_agent.log

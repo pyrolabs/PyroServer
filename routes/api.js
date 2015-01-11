@@ -377,7 +377,7 @@ function newApp(newAppName){
   			// appObj.structure = jsonFolder;
   			deferred.resolve(appObj);
   		}, function(error){
-  				console.error('[newApp] saving folder structure to Firebase:', err);
+  				console.error('[newApp] error saving folder structure to Firebase:', err);
   				deferred.reject(error);
   		});
   	}, function(err){
@@ -938,7 +938,7 @@ function getListOfS3BucketContents(argBucketName) {
  */
 function saveFolderToFirebase(argAppName){
 	var deferredSave = Q.defer();
-	var appFolder = "fs/"+argAppName;
+	var appFolder = "fs/pyro-"+argAppName;
 	console.log('[saveFolderToFirebase] appFolder:', appFolder);
 	var jsonTree = util.inspect(dirTree(appFolder), {depth:12}, null);
 	console.log('[saveFolderToFirebase] jsonTree:', jsonTree);
