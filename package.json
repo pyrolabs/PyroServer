@@ -1,6 +1,6 @@
 {
   "name": "pyroServer",
-  "version": "1.0.0-a.2",
+  "version": "1.0.0-a.3",
   "author": "Prescott Prue <sprue.dev@gmail.com>",
   "private": true,
   "engines": {
