@@ -45,7 +45,7 @@ module.exports = function(grunt) {
       },
       shell:{
         deploy:{
-          command:'gh'
+          command:'git push heroku master'
         }
       }
     });
