@@ -69,7 +69,7 @@ module.exports = function(grunt) {
     */
     //copy to dist folder, create docs
     grunt.registerTask('stage', ['copy:stage']);
-
+    grunt.registerTask('patch', ['copy:release', 'shell:deploy'])
     //Bump version, Create docs, copy to dist folder, deploy to heroku
     grunt.registerTask('release', ['bump-only:prerelease', 'copy:release', 'bump-commit', 'shell:deploy']);
 

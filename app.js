@@ -1,4 +1,4 @@
-require('newrelic');
+// require('newrelic');
 var express = require('express');
 var path = require('path');
 var favicon = require('serve-favicon');
@@ -30,10 +30,12 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 // API HEADERS
 var whitelist = ['https://pyro.firebaseapp.com', 'http://localhost:9000', 'https://pyro-platform.firebaseapp.com', 'https://pyrolabs.io'];
-var corsOptions = {origin: function(origin, callback){
+var corsOptions = {
+  origin: function(origin, callback) {
     var originIsWhitelisted = whitelist.indexOf(origin) !== -1;
     callback(null, originIsWhitelisted);
-  }};
+  }
+};
 app.use(cors());
 app.options('*', cors());
 app.use('/', routes);
@@ -45,7 +47,7 @@ var versionNames = _.filter(versionDirectories, function(path){
 });
 console.log('Enabled versions:', versionNames);
 createEndpointsFromArray(versionNames, "./dist/");
-//Create endpoint for each version
+//Create endpoint for each version that has a folder
 function createEndpointsFromArray(endpointsArray, folderPath){
   _.each(endpointsArray, function(element,index, list){
     app.use('/'+ element, require(folderPath + element + '/api.js'));
@@ -54,9 +56,9 @@ function createEndpointsFromArray(endpointsArray, folderPath){
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
-    var err = new Error('Not Found');
-    err.status = 404;
-    next(err);
+  var err = new Error('Not Found');
+  err.status = 404;
+  next(err);
 });
 
 // error handlers
@@ -64,23 +66,23 @@ app.use(function(req, res, next) {
 // development error handler
 // will print stacktrace
 if (app.get('env') === 'development') {
-    app.use(function(err, req, res, next) {
-        res.status(err.status || 500);
-        res.render('error', {
-            message: err.message,
-            error: err
-        });
+  app.use(function(err, req, res, next) {
+    res.status(err.status || 500);
+    res.render('error', {
+        message: err.message,
+        error: err
     });
+  });
 }
 
 // production error handler
 // no stacktraces leaked to user
 app.use(function(err, req, res, next) {
-    res.status(err.status || 500);
-    res.render('error', {
-        message: err.message,
-        error: {}
-    });
+  res.status(err.status || 500);
+  res.render('error', {
+      message: err.message,
+      error: {}
+  });
 });
 var Firebase = require('firebase');
 var FirebaseTokenGenerator = require('firebase-token-generator');

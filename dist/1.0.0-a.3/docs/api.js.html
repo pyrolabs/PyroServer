@@ -1,4 +1,183 @@
-var express = require('express');
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>DocStrap Source: api.js</title>
+
+	<!--[if lt IE 9]>
+	<script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+	<![endif]-->
+	<link type="text/css" rel="stylesheet" href="styles/sunlight.default.css">
+
+	<link type="text/css" rel="stylesheet" href="styles/site.cosmo.css">
+
+</head>
+
+<body>
+<div class="container-fluid">
+	<div class="navbar navbar-fixed-top navbar-inverse">
+		<div class="navbar-inner">
+			<a class="brand" href="index.html">DocStrap</a>
+			<ul class="nav">
+				
+				<li class="dropdown">
+					<a href="namespaces.list.html" class="dropdown-toggle" data-toggle="dropdown">Namespaces<b
+						class="caret"></b></a>
+
+					<ul class="dropdown-menu ">
+						
+						<li>
+							<a href="get.html">api/fb/instance/get</a>
+						</li>
+						
+
+					</ul>
+				</li>
+				
+				<li class="dropdown">
+					<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b
+						class="caret"></b></a>
+
+					<ul class="dropdown-menu ">
+						
+						<li>
+							<a href="global.html#configureS3AndGetClient">configureS3AndGetClient</a>
+						</li>
+						
+						<li>
+							<a href="global.html#createAndConfigS3Bucket">createAndConfigS3Bucket</a>
+						</li>
+						
+						<li>
+							<a href="global.html#createFirebaseAccount">createFirebaseAccount</a>
+						</li>
+						
+						<li>
+							<a href="global.html#createFirebaseInstance">createFirebaseInstance</a>
+						</li>
+						
+						<li>
+							<a href="global.html#createS3Bucket">createS3Bucket</a>
+						</li>
+						
+						<li>
+							<a href="global.html#deleteFirebaseInstance">deleteFirebaseInstance</a>
+						</li>
+						
+						<li>
+							<a href="global.html#deleteS3Bucket">deleteS3Bucket</a>
+						</li>
+						
+						<li>
+							<a href="global.html#dirTree">dirTree</a>
+						</li>
+						
+						<li>
+							<a href="global.html#enableEmailAuth">enableEmailAuth</a>
+						</li>
+						
+						<li>
+							<a href="global.html#generatePyroApp">generatePyroApp</a>
+						</li>
+						
+						<li>
+							<a href="global.html#getAppFb">getAppFb</a>
+						</li>
+						
+						<li>
+							<a href="global.html#getFirebaseAccount">getFirebaseAccount</a>
+						</li>
+						
+						<li>
+							<a href="global.html#getFirebaseAccountFromUid">getFirebaseAccountFromUid</a>
+						</li>
+						
+						<li>
+							<a href="global.html#getFirebaseInstance">getFirebaseInstance</a>
+						</li>
+						
+						<li>
+							<a href="global.html#getListOfS3BucketContents">getListOfS3BucketContents</a>
+						</li>
+						
+						<li>
+							<a href="global.html#newApp">newApp</a>
+						</li>
+						
+						<li>
+							<a href="global.html#respond">respond</a>
+						</li>
+						
+						<li>
+							<a href="global.html#saveFolderToFirebase">saveFolderToFirebase</a>
+						</li>
+						
+						<li>
+							<a href="global.html#seperateS3Url">seperateS3Url</a>
+						</li>
+						
+						<li>
+							<a href="global.html#setS3Cors">setS3Cors</a>
+						</li>
+						
+						<li>
+							<a href="global.html#setS3Website">setS3Website</a>
+						</li>
+						
+						<li>
+							<a href="global.html#uploadFromRamList">uploadFromRamList</a>
+						</li>
+						
+						<li>
+							<a href="global.html#uploadToBucket">uploadToBucket</a>
+						</li>
+						
+
+					</ul>
+				</li>
+				
+				<li class="dropdown">
+					<a href="externals.list.html" class="dropdown-toggle" data-toggle="dropdown">Externals<b
+						class="caret"></b></a>
+
+					<ul class="dropdown-menu ">
+						
+						<li>
+							<a href="new.html">Endpoint /app/new</a>
+						</li>
+						
+						<li>
+							<a href="upload.html">Endpoint /app/upload</a>
+						</li>
+						
+						<li>
+							<a href="get_.html">Endpoint api/fb/account/get</a>
+						</li>
+						
+
+					</ul>
+				</li>
+				
+			</ul>
+		</div>
+	</div>
+
+	<div class="row-fluid">
+
+		
+			<div class="span12">
+				
+				<div id="main">
+					
+
+
+		<h1 class="page-title">Source: api.js</h1>
+    
+<section>
+	<article>
+		<pre
+			class="sunlight-highlight-javascript linenums">var express = require('express');
 var router = express.Router();
 var FirebaseAccount = require('firebase-admin');
 var Firebase = require('firebase');
@@ -107,20 +286,18 @@ router.post('/app/new', function(req, res){
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
-/** Upload file contents to live version of application
+/** Upload app by pulling the information from Firebase
  * @external Endpoint /app/upload
  * @params {string} Name Name of list to retreive
- * @params {string} Uid - Unique id of user to generate for
- * @params {string} filePath - Path of file being uploaded
- * @params {string} content - String Contents of file to be uploaded
+ * @params {string} Uid Uid of user to generate for
  */
 router.post('/app/upload', function(req, res){
 	console.log('new request received:', req.body);
-	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid') && req.body.hasOwnProperty('filePath') && req.body.hasOwnProperty('content')){
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid') && req.body.hasOwnProperty('filePath')){
 		var appName = req.body.name;
 		var bucketName = "pyro-" + req.body.name;
 		var userUid = req.body.uid;
-		var path = req.body.filePath;
+		var path = req.body.filePath.replace(".", ":");
 		console.log('[/app/upload] request is the correct shape');
 		pyrofb.child('instances').child(appName).once('value', function(appSnap){
 			console.log('[/app/upload appSnap:]:', appSnap.val());
@@ -128,9 +305,9 @@ router.post('/app/upload', function(req, res){
 			if(appData) {
 				console.log('[/app/upload app data:]', appData);
 				// [TODO] Check for values to exist
-				saveToFileOnS3(bucketName, path, req.body.content).then(function(fileInfo){
+				uploadFromRamList(bucketName, path, userUid).then(function(fileInfo){
 					console.log('uploadFromRamList returned:', fileInfo);
-					respond({status:200,  message:'Success', info: fileInfo}, res);
+					respond({status:200,  message:'Success', info: fileInfo}, res)
 				}, function(err){
 					console.error('error getting app reference:', err);
 					respond({status:500,  error:err}, res);
@@ -147,44 +324,18 @@ router.post('/app/upload', function(req, res){
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
-/** Upload file contents to S3 given bucket, file key and file contents
- * @function uploadFromRamList
- * @params {string} bucketName - Name of bucket to upload to
- * @params {string} fileKey - Key of file to save
- * @params {string} fileContents - File contents in string form
- */
-function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
-	console.log('[saveToFileOnS3] saveToFileOnS3 called', arguments);
-	var filePath = argFileKey.replace('%20', '.');
-  var deferred = Q.defer();
-  var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents};
-  console.log('[saveToFileOnS3] saveParams:', saveParams);
-  var s3bucket = new awsSdk.S3();
-  s3bucket.putObject(saveParams, function(err, data){
-  	//[TODO] Add putting object ACL (make public)
-    if(!err){
-      console.log('[saveToFileOnS3] file saved successfully. Returning:', data);
-      deferred.resolve(data);
-    } else {
-      console.log('[saveToFileOnS3] error saving file:', err);
-      deferred.reject(err);
-    }
-  });
-  return deferred.promise;
-}
+
 /** Upload app file to s3 by pulling the information from Firebase
- * @function uploadFromRamList
- * @params {string} bucketName Name of bucket to upload to/from
- * @params {string} fileKey Name of bucket to upload to/from
- * @params {string} uid Unique Identification number of user
+ * @endpoint /app/new
+ * @params {object} uploadObject Name of list to retreive
+ * @params {string} uploadObject.appName Name of app to
  */
 function uploadFromRamList(argBucketName, argFileKey, argUid){
-	console.log('uploadFromRamList called', arguments);
+	console.log('uploadFromRamList called');
 	var deferred = Q.defer()
 	// File reference in userRam list
 	var fileRef = pyrofb.child('userRam').child(argUid).child(argBucketName).child(argFileKey);
 	// Load File
-	//[TODO] Check to make sure that edit is by the author/a contributor
 	fileRef.once('value', function(fileSnap){
 		if(fileSnap.val()) {
 			//file exists in file ref
@@ -204,6 +355,24 @@ function uploadFromRamList(argBucketName, argFileKey, argUid){
 	return deferred.promise;
 }
 
+function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
+	console.log('[saveToFileOnS3] saveFile called', arguments);
+	var filePath = argFileKey.replace('%20', '.');
+  var deferred = Q.defer();
+  var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents};
+  console.log('[saveToFileOnS3] saveParams:', saveParams);
+  var s3bucket = new awsSdk.S3();
+  s3bucket.putObject(saveParams, function(err, data){
+    if(!err){
+      console.log('[saveToFileOnS3] file saved successfully. Returning:', data);
+      deferred.resolve(data);
+    } else {
+      console.log('[saveToFileOnS3] error saving file:', err);
+      deferred.reject(err);
+    }
+  });
+  return deferred.promise;
+}
 /** New Fb Account
  * @endpoint api/fb/account/get
  * @params {string} email Email of account to get
@@ -1052,7 +1221,7 @@ function dirTree(filename, appName) {
 }
 String.prototype.replaceAll = function(str1, str2, ignore)
 {
-	return this.replace(new RegExp(str1.replace(/([\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g,"\\$&"),(ignore?"gi":"g")),(typeof(str2)=="string")?str2.replace(/\$/g,"$$$$"):str2);
+	return this.replace(new RegExp(str1.replace(/([\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\&lt;\>\-\&])/g,"\\$&"),(ignore?"gi":"g")),(typeof(str2)=="string")?str2.replace(/\$/g,"$$$$"):str2);
 }
 module.exports = router;
 /** UNSECURE List objects from s3 given name
@@ -1160,3 +1329,105 @@ params:
 // 		res.write(JSON.stringify(err));
 // 		res.end();
 // 	});
+</pre>
+	</article>
+</section>
+
+
+
+
+
+				</div>
+
+				<div class="clearfix"></div>
+				<footer>
+					
+					
+		<span class="copyright">
+		DocStrap Copyright © 2012-2014 The contributors to the JSDoc3 and DocStrap projects.
+		</span>
+					<br />
+					
+		<span class="jsdoc-message">
+		Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a>
+		on Thu Mar 26th 2015 using the <a
+			href="https://github.com/terryweiss/docstrap">DocStrap template</a>.
+		</span>
+				</footer>
+			</div>
+
+			
+			<br clear="both">
+		</div>
+
+	</div>
+	<!--<script src="scripts/sunlight.js"></script>-->
+	<script src="scripts/docstrap.lib.js"></script>
+	<script src="scripts/bootstrap-dropdown.js"></script>
+	<script src="scripts/toc.js"></script>
+
+	<script>
+		$( function () {
+			$( "[id*='$']" ).each( function () {
+				var $this = $( this );
+
+				$this.attr( "id", $this.attr( "id" ).replace( "$", "__" ) );
+			} );
+
+			$( "#toc" ).toc( {
+				anchorName  : function ( i, heading, prefix ) {
+					return $( heading ).attr( "id" ) || ( prefix + i );
+				},
+				selectors   : "h1,h2,h3,h4",
+				showAndHide : false,
+				scrollTo    : "100px"
+			} );
+
+			$( "#toc>ul" ).addClass( "nav nav-pills nav-stacked" );
+			$( "#main span[id^='toc']" ).addClass( "toc-shim" );
+			$( '.dropdown-toggle' ).dropdown();
+//			$( ".tutorial-section pre, .readme-section pre" ).addClass( "sunlight-highlight-javascript" ).addClass( "linenums" );
+
+			$( ".tutorial-section pre, .readme-section pre" ).each( function () {
+				var $this = $( this );
+
+				var example = $this.find( "code" );
+				exampleText = example.html();
+				var lang = /{@lang (.*?)}/.exec( exampleText );
+				if ( lang && lang[1] ) {
+					exampleText = exampleText.replace( lang[0], "" );
+					example.html( exampleText );
+					lang = lang[1];
+				} else {
+					lang = "javascript";
+				}
+
+				if ( lang ) {
+
+					$this
+						.addClass( "sunlight-highlight-" + lang )
+						.addClass( "linenums" )
+						.html( example.html() );
+
+				}
+			} );
+
+			Sunlight.highlightAll( {
+				lineNumbers : true,
+				showMenu : true,
+				enableDoclinks : true
+			} );
+		} );
+	 </script>
+
+
+
+	<!--Navigation and Symbol Display-->
+	
+
+
+	<!--Google Analytics-->
+	
+
+</body>
+</html>
