@@ -39,7 +39,7 @@ var corsOptions = {
 app.use(cors());
 app.options('*', cors());
 app.use('/', routes);
-// app.use('/dev', api);
+app.use('/dev', api);
 
 var versionDirectories = fs.readdirSync('./dist/');
 var versionNames = _.filter(versionDirectories, function(path){
