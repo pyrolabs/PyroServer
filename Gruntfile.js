@@ -1,7 +1,9 @@
 module.exports = function(grunt) {
     // Project configuration.
+    require('load-grunt-tasks')(grunt);
     grunt.initConfig({
       pkg: grunt.file.readJSON('package.json'),
+      conf:grunt.file.readJSON('config.json'),
       jsdoc: {
         dist:{
           src: ['routes/api.js'],
@@ -44,26 +46,17 @@ module.exports = function(grunt) {
         }
       },
       shell:{
+        serve:{
+          command:'node ./bin/www'
+        },
         deploy:{
           command:'git push heroku master'
         }
       }
     });
 
-    // JSDoc
-    grunt.loadNpmTasks('grunt-jsdoc');
-
-    //Copy current version
-    grunt.loadNpmTasks('grunt-contrib-copy');
-
-     //Bump version commit and push
-    grunt.loadNpmTasks('grunt-bump');
-
-     //Shell commands (push to heroku)
-    grunt.loadNpmTasks('grunt-shell');
-
     // Default task(s).
-    grunt.registerTask('default', [ 'jsdoc']);
+    grunt.registerTask('default', [ 'jsdoc', 'shell:serve']);
     /* Builds minified script and creates documentation
       @task
     */

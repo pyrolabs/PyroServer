@@ -152,6 +152,10 @@
 						</li>
 						
 						<li>
+							<a href="generate.html">Endpoint /generate</a>
+						</li>
+						
+						<li>
 							<a href="get_.html">Endpoint api/fb/account/get</a>
 						</li>
 						
@@ -218,30 +222,36 @@ function configureS3AndGetClient(){
 		throw Error('Environment not setup properly. Check S3 keys');
 	}
 }
-
+/** Generate a new Pyro App
+ * @external Endpoint /generate
+ * @params {string} Name Name of list to retreive
+ * @params {string} Uid Uid of user to generate for
+ */
 router.post('/generate', function(req, res){
 	console.log('generate request received:', req.body);
 	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
 		console.log('[/generate] request is the correct shape');
 		var newAppName = "pyro-" + req.body.name;
 		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
-				console.log('[/generate appSnap:]:', appSnap);
-				if(!appSnap.val()){
-					// [TODO] check that author is the author of the instance
-					console.log('request has name param:', newAppName);
-					// Log into Server Firebase account
-					// generateFirebase
-					generatePyroApp(req.body.uid, req.body.name).then(function(pyroAppData){
-						console.log('[/generate App generated successfully]:', pyroAppData);
-						pyroAppData.status = 200;
-						respond(pyroAppData, res);
-					}, function(err){
-						respond(err, res);
-					});
-				}
-				else {
-					respond({status:500, message:'App By that name already exists on pyro.'}, res);
-				}
+			console.log('[/generate appSnap:]:', appSnap);
+			if(!appSnap.val()){
+				// [TODO] check that author is the author of the instance
+				console.log('request has name param:', newAppName);
+				// Log into Server Firebase account
+				// generateFirebase
+				generatePyroApp(req.body.uid, req.body.name).then(function(pyroAppData){
+					console.log('[/generate App generated successfully]:', pyroAppData);
+					pyroAppData.status = 200;
+					respond(pyroAppData, res);
+				}, function(err){
+					//[TODO] Handle App Firebase already existing
+
+					respond(err, res);
+				});
+			}
+			else {
+				respond({status:500, message:'App By that name already exists on pyro.'}, res);
+			}
 		}, function(err){
 			console.error('error getting app reference:', err);
 			respond({status:500,  error:err.error, code:err.code}, res);
@@ -286,18 +296,51 @@ router.post('/app/new', function(req, res){
 		respond({status:500, message:'Incorrect request format'}, res);
 	}
 });
-/** Upload app by pulling the information from Firebase
+router.post('/app/copy', function(req, res){
+	console.log('new request received:', req.body);
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid')){
+		console.log('[/generate] request is the correct shape');
+		var newAppName = req.body.name;
+		pyrofb.child('instances').child(newAppName).once('value', function(appSnap){
+				console.log('[/generate appSnap:]:', appSnap);
+				if(!appSnap.val()){
+					// [TODO] check that author is the author of the instance
+					console.log('request has name param:', newAppName);
+					// Log into Server Firebase account
+					// generateFirebase
+					uploadToBucket("pyro-"+newAppName, "fs/seed", newAppName).then(function(pyroAppData){
+						console.log('[/app/copy App copied successfully]:', pyroAppData);
+						pyroAppData.status = 200;
+						respond(pyroAppData, res);
+					}, function(err){
+						respond(err, res);
+					});
+				}
+				else {
+					respond({status:500, message:'App By that name already exists on pyro.'}, res);
+				}
+		}, function(err){
+			console.error('error getting app reference:', err);
+			respond({status:500,  error:err.error, code:err.code}, res);
+		});
+	} else {
+		respond({status:500, message:'Incorrect request format'}, res);
+	}
+});
+/** Upload file contents to live version of application
  * @external Endpoint /app/upload
  * @params {string} Name Name of list to retreive
- * @params {string} Uid Uid of user to generate for
+ * @params {string} Uid - Unique id of user to generate for
+ * @params {string} filePath - Path of file being uploaded
+ * @params {string} content - String Contents of file to be uploaded
  */
 router.post('/app/upload', function(req, res){
 	console.log('new request received:', req.body);
-	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid') && req.body.hasOwnProperty('filePath')){
+	if(req.body.hasOwnProperty('name') && req.body.hasOwnProperty('uid') && req.body.hasOwnProperty('filePath') && req.body.hasOwnProperty('content')){
 		var appName = req.body.name;
 		var bucketName = "pyro-" + req.body.name;
 		var userUid = req.body.uid;
-		var path = req.body.filePath.replace(".", ":");
+		var path = req.body.filePath;
 		console.log('[/app/upload] request is the correct shape');
 		pyrofb.child('instances').child(appName).once('value', function(appSnap){
 			console.log('[/app/upload appSnap:]:', appSnap.val());
@@ -305,9 +348,9 @@ router.post('/app/upload', function(req, res){
 			if(appData) {
 				console.log('[/app/upload app data:]', appData);
 				// [TODO] Check for values to exist
-				uploadFromRamList(bucketName, path, userUid).then(function(fileInfo){
+				saveToFileOnS3(bucketName, path, req.body.content).then(function(fileInfo){
 					console.log('uploadFromRamList returned:', fileInfo);
-					respond({status:200,  message:'Success', info: fileInfo}, res)
+					respond({status:200,  message:'Success', info: fileInfo}, res);
 				}, function(err){
 					console.error('error getting app reference:', err);
 					respond({status:500,  error:err}, res);
@@ -325,54 +368,7 @@ router.post('/app/upload', function(req, res){
 	}
 });
 
-/** Upload app file to s3 by pulling the information from Firebase
- * @endpoint /app/new
- * @params {object} uploadObject Name of list to retreive
- * @params {string} uploadObject.appName Name of app to
- */
-function uploadFromRamList(argBucketName, argFileKey, argUid){
-	console.log('uploadFromRamList called');
-	var deferred = Q.defer()
-	// File reference in userRam list
-	var fileRef = pyrofb.child('userRam').child(argUid).child(argBucketName).child(argFileKey);
-	// Load File
-	fileRef.once('value', function(fileSnap){
-		if(fileSnap.val()) {
-			//file exists in file ref
-			var fileString = fileSnap.val();
-			saveToFileOnS3(argBucketName, argFileKey, fileString).then(function(returnedData){
-				console.log('File saved to s3. Returning:', returnedData);
-				deferred.resolve(returnedData);
-			}, function(){
-				console.error('Error saving file to S3');
-				deferred.reject({status:500, message:'File to upload not found'});
-			});
-		} else {
-			console.warn('file does not exist in ram');
-			deferred.reject({status:500, message:'File to upload not found'});
-		}
-	});
-	return deferred.promise;
-}
 
-function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
-	console.log('[saveToFileOnS3] saveFile called', arguments);
-	var filePath = argFileKey.replace('%20', '.');
-  var deferred = Q.defer();
-  var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents};
-  console.log('[saveToFileOnS3] saveParams:', saveParams);
-  var s3bucket = new awsSdk.S3();
-  s3bucket.putObject(saveParams, function(err, data){
-    if(!err){
-      console.log('[saveToFileOnS3] file saved successfully. Returning:', data);
-      deferred.resolve(data);
-    } else {
-      console.log('[saveToFileOnS3] error saving file:', err);
-      deferred.reject(err);
-    }
-  });
-  return deferred.promise;
-}
 /** New Fb Account
  * @endpoint api/fb/account/get
  * @params {string} email Email of account to get
@@ -585,6 +581,62 @@ function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
   });
   return deferred.promise;
 }
+/** Upload file contents to S3 given bucket, file key and file contents
+ * @function uploadFromRamList
+ * @params {string} bucketName - Name of bucket to upload to
+ * @params {string} fileKey - Key of file to save
+ * @params {string} fileContents - File contents in string form
+ */
+function saveToFileOnS3(argBucketName, argFileKey, argFileContents){
+	console.log('[saveToFileOnS3] saveToFileOnS3 called', arguments);
+	var filePath = argFileKey.replace('%20', '.');
+  var deferred = Q.defer();
+  var saveParams = {Bucket:argBucketName, Key:filePath,  Body: argFileContents};
+  console.log('[saveToFileOnS3] saveParams:', saveParams);
+  var s3bucket = new awsSdk.S3();
+  s3bucket.putObject(saveParams, function(err, data){
+  	//[TODO] Add putting object ACL (make public)
+    if(!err){
+      console.log('[saveToFileOnS3] file saved successfully. Returning:', data);
+      deferred.resolve(data);
+    } else {
+      console.log('[saveToFileOnS3] error saving file:', err);
+      deferred.reject(err);
+    }
+  });
+  return deferred.promise;
+}
+/** Upload app file to s3 by pulling the information from Firebase
+ * @function uploadFromRamList
+ * @params {string} bucketName Name of bucket to upload to/from
+ * @params {string} fileKey Name of bucket to upload to/from
+ * @params {string} uid Unique Identification number of user
+ */
+function uploadFromRamList(argBucketName, argFileKey, argUid){
+	console.log('uploadFromRamList called', arguments);
+	var deferred = Q.defer()
+	// File reference in userRam list
+	var fileRef = pyrofb.child('userRam').child(argUid).child(argBucketName).child(argFileKey);
+	// Load File
+	//[TODO] Check to make sure that edit is by the author/a contributor
+	fileRef.once('value', function(fileSnap){
+		if(fileSnap.val()) {
+			//file exists in file ref
+			var fileString = fileSnap.val();
+			saveToFileOnS3(argBucketName, argFileKey, fileString).then(function(returnedData){
+				console.log('File saved to s3. Returning:', returnedData);
+				deferred.resolve(returnedData);
+			}, function(){
+				console.error('Error saving file to S3');
+				deferred.reject({status:500, message:'File to upload not found'});
+			});
+		} else {
+			console.warn('file does not exist in ram');
+			deferred.reject({status:500, message:'File to upload not found'});
+		}
+	});
+	return deferred.promise;
+}
 /** Create a new Database, and copy a new app to a new S3 bucket under the same bucket name as the database
  * @function newApp
  * @params {string} uid Uid of new accont on which to generate pyro app
@@ -643,19 +695,20 @@ function generatePyroApp(argUid, argName) {
 	  			console.log('[generatePyroApp] SaveFolderToFirebase successful');
 	  			deferred.resolve(firebaseObj);
 	  		}, function(error){
-	  				console.error('[generatePyroApp] Saving folder structure to Firebase:', error);
-	  				deferred.reject(error);
+  				console.error('[generatePyroApp] Saving folder structure to Firebase:', error);
+  				deferred.reject(error);
 	  		});
 	  	}, function(err){
-					console.error('[generatePyroApp] Error uploading seed to S3:', err);
-	  			deferred.reject(err);
+				console.error('[generatePyroApp] Error uploading seed to S3:', err);
+  			deferred.reject(err);
 	  	});
   	}, function(err){
-  		console.error('[generatePyroApp] Creating S3 bucket:', err);
+  		console.error('[generatePyroApp] Error Creating S3 bucket:', err);
 			deferred.reject(err);
   	});
 	}, function(err){
 		console.error('[generatePyroApp] Error creating firebase instance, err:', err);
+		//[TODO] Handle Firebase instance already exisiting
 		deferred.reject(err);
 	});
 	return deferred.promise;
@@ -876,7 +929,6 @@ function getFirebaseAccount(argEmail, argPass){
 			resObj.message = 'Error getting Firebase account';
 			console.warn('error response:', resObj);
 			deferred.reject(resObj);
-
 		}
 	}); //-- getToken
 	return deferred.promise;
@@ -923,17 +975,38 @@ function uploadToBucket(argBucketName, argLocalDir, argAppName){
 		};
 		var uploader = client.uploadDir(upParams);
 		uploader.on('error', function(err) {
-	  	console.error("unable to sync:", err.stack);
-			deferred.reject({status:500, error:err});
+	  	console.error("[uploadToBucket] unable to sync:", err);
+	  	//If bucket doesn't exist try without pyro- infront
+	  	if(err.code == "NOSUCHBUCKET"){
+	  		var oldBucketName = upParams.s3Params.Bucket;
+	  		upParams.s3Params.Bucket = argBucketName.replace("pyro-", "");
+	  		if(oldBucketName != upParams.s3Params.Bucket){
+	  			var secondTryUploader = client.uploadDir(upParams);
+	  			secondTryUploader.on('error', function(err) {
+				  	console.error("[uploadToBucket] unable to sync:", err);
+				  	//If bucket doesn't exist try without pyro- infront
+						deferred.reject({status:500, error:err});
+					});
+	  			secondTryUploader.on('end', function() {
+					  console.log("[uploadToBucket] Upload succesful");
+						// [TODO] Delete new app folders
+					  var bucketUrl = argBucketName + '.s3-website-us-east-1.amazonaws.com';
+					  console.log('[uploadToBucket] uploader returning:', bucketUrl);
+					  deferred.resolve(bucketUrl);
+					});
+	  		}
+	  	} else {
+				deferred.reject({status:500, error:err});
+	  	}
 		});
 		// uploader.on('progress', function() {
 		//   console.log("progress", uploader.progressAmount, uploader.progressTotal);
 		// });
 		uploader.on('end', function() {
-		  console.log("Upload succesful");
+		  console.log("[uploadToBucket] Upload succesful");
 			// [TODO] Delete new app folders
 		  var bucketUrl = argBucketName + '.s3-website-us-east-1.amazonaws.com';
-		  console.log('uploader returning:', bucketUrl);
+		  console.log('[uploadToBucket] uploader returning:', bucketUrl);
 		  deferred.resolve(bucketUrl);
 		});
 	})
@@ -973,12 +1046,12 @@ function deletePyroApp(argAppName, argUid){
 		var s3bucket = new awsSdk.S3();
 		s3bucket.createBucket({Bucket: argBucketName, ACL:'public-read'},function(err, data) {
 			if(err){
-				console.error('error creating bucket:', err);
+				console.error('[createS3Bucket] error creating bucket:', err);
 				deferredCreate.reject({status:500, error:err});
 			} else {
-				console.log('bucketCreated successfully:', data);
+				console.log('[createS3Bucket] bucketCreated successfully:', data);
 				// Setup Bucket website
-				var dataContents = data.toString()
+				var dataContents = data.toString();
 				deferredCreate.resolve(dataContents.locationn);
 			}
 		});
@@ -1350,7 +1423,7 @@ params:
 					
 		<span class="jsdoc-message">
 		Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.2.2</a>
-		on Thu Mar 26th 2015 using the <a
+		on Thu Apr 9th 2015 using the <a
 			href="https://github.com/terryweiss/docstrap">DocStrap template</a>.
 		</span>
 				</footer>
